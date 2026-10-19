@@ -5,6 +5,9 @@
 # Dependencies (none are required yet)
 vendor/
 
+# Local availability blocks saved by the staff desk
+storage/
+
 # Logs and OS/editor files
 *.log
 .DS_Store

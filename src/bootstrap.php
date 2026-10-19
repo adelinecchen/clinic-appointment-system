@@ -55,4 +55,9 @@ function env_value(string $name, string $default = ''): string
     return $value;
 }
 
+function h(string $value): string
+{
+    return htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
+}
+
 load_env_file(dirname(__DIR__) . '/.env');
