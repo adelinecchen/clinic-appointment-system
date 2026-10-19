@@ -43,7 +43,7 @@ No Composer packages or frontend framework are used.
 2. Put this project where Apache can see it. On macOS that is often a symlink:
 
    ```bash
-   ln -s /Users/adelinechen/capstone/Capstone /Applications/XAMPP/htdocs/capstone
+   ln -s /Users/.../XAMPP/htdocs/capstone
    ```
 
    On Windows, copy or link the project into `C:\xampp\htdocs\capstone`.
