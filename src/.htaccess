@@ -1,0 +1,3 @@
+# Application code is not part of the website.
+# Apache denies requests here if the document root is set too broadly.
+Require all denied
