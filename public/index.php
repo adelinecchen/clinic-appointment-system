@@ -6,25 +6,36 @@ require_once __DIR__ . '/../src/bootstrap.php';
 require_once __DIR__ . '/../src/preview_data.php';
 require_once __DIR__ . '/../src/patient_copy.php';
 require_once __DIR__ . '/../src/patient_layout.php';
+require_once __DIR__ . '/../src/patient_calendar.php';
+require_once __DIR__ . '/../src/patient_status.php';
+
+if (session_status() !== PHP_SESSION_ACTIVE) {
+    session_start();
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
+    patient_status_process();
+    if (!headers_sent()) {
+        header('Location: index.php#status');
+        exit;
+    }
+}
 
 $errors = [];
 $values = preview_booking_defaults();
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
     $checked = preview_validate_booking($_POST);
     $errors = $checked['errors'];
     $values = $checked['values'];
     if ($errors === []) {
-        if (session_status() !== PHP_SESSION_ACTIVE) {
-            session_start();
-        }
         $_SESSION['booking_preview'] = $checked['booking'];
         header('Location: confirmation.php');
         exit;
     }
 }
 
-patient_page_start(patient_text('book_title'), 'home');
+patient_page_start(patient_text('book_title'), isset($_GET['change']) ? 'status' : 'home');
 ?>
     <section class="book-hero">
         <div class="wrap book-grid">
@@ -38,7 +49,7 @@ patient_page_start(patient_text('book_title'), 'home');
                 </ul>
             </div>
 
-            <form class="book-card" method="post" action="index.php" data-hint="<?php echo h(patient_text('party_hint')); ?>" data-fit-one="<?php echo h(patient_fit_message(1)); ?>" data-fit-many="<?php echo h(patient_fit_message(2)); ?>" data-another="<?php echo h(patient_text('you')); ?>">
+            <form class="book-card" method="post" action="index.php">
                 <h2><?php echo h(patient_text('card_title')); ?></h2>
                 <?php if ($errors !== []): ?>
                     <div class="errors" role="alert">
@@ -72,25 +83,11 @@ patient_page_start(patient_text('book_title'), 'home');
 
                 <fieldset>
                     <legend>2. <?php echo h(patient_text('step_time')); ?></legend>
-                    <div class="pills" role="radiogroup" aria-label="<?php echo h(patient_text('step_time')); ?>">
-                        <?php foreach (preview_open_dates() as $day): ?>
-                            <label class="pill">
-                                <input type="radio" name="appointment_date" value="<?php echo h($day['value']); ?>"<?php echo $values['appointment_date'] === $day['value'] ? ' checked' : ''; ?>>
-                                <span><?php echo h($day['label']); ?></span>
-                            </label>
-                        <?php endforeach; ?>
-                    </div>
-                    <?php if (preview_open_dates() === []): ?>
-                        <p class="hint"><?php echo h(patient_text('no_dates')); ?></p>
-                    <?php else: ?>
-                    <div class="pills time-pills">
-                        <?php foreach (preview_open_slots((string) $values['appointment_date']) as $slot): ?>
-                            <label class="pill">
-                                <input type="radio" name="appointment_time" value="<?php echo h($slot['value']); ?>"<?php echo $values['appointment_time'] === $slot['value'] ? ' checked' : ''; ?>>
-                                <span><?php echo h($slot['label']); ?></span>
-                            </label>
-                        <?php endforeach; ?>
-                    </div>
+                    <p class="picker-label"><?php echo h(patient_text('choose_date')); ?></p>
+                    <?php patient_render_calendar((string) $values['appointment_date']); ?>
+                    <?php if (preview_open_dates() !== []): ?>
+                        <p class="picker-label"><?php echo h(patient_text('choose_time')); ?></p>
+                        <?php patient_render_times((string) $values['appointment_date'], (string) $values['appointment_time']); ?>
                     <?php endif; ?>
                 </fieldset>
 
@@ -106,42 +103,14 @@ patient_page_start(patient_text('book_title'), 'home');
                             <input name="patient_phone" type="tel" autocomplete="tel" inputmode="tel" required placeholder="(757) 555-0142" value="<?php echo h($values['patient_phone']); ?>"<?php echo isset($errors['patient_phone']) ? ' aria-invalid="true"' : ''; ?>>
                         </label>
                     </div>
-                    <div id="party-list">
-                        <?php foreach ($values['party'] as $partyName): ?>
-                            <div class="party-card">
-                                <label>
-                                    <span class="sr-only"><?php echo h(patient_text('person')); ?></span>
-                                    <input name="party_name[]" type="text" autocomplete="name" maxlength="80" placeholder="<?php echo h(patient_text('person')); ?>" value="<?php echo h($partyName); ?>">
-                                </label>
-                                <button type="button" class="text-button" data-remove-person><?php echo h(patient_text('remove_person')); ?></button>
-                            </div>
-                        <?php endforeach; ?>
-                    </div>
-                    <button type="button" class="text-button" id="add-person"><?php echo h(patient_text('add_person')); ?></button>
-                    <p id="party-note" class="hint" aria-live="polite"><?php echo h(patient_text('party_hint')); ?></p>
-                    <ol id="party-plan" class="party-plan"></ol>
-                    <template id="party-template">
-                        <div class="party-card">
-                            <label>
-                                <span class="sr-only"><?php echo h(patient_text('person')); ?></span>
-                                <input name="party_name[]" type="text" autocomplete="name" maxlength="80" placeholder="<?php echo h(patient_text('person')); ?>">
-                            </label>
-                            <button type="button" class="text-button" data-remove-person><?php echo h(patient_text('remove_person')); ?></button>
-                        </div>
-                    </template>
-                    <script type="application/json" id="slot-data"><?php
-                        $slotMap = [];
-                        foreach (preview_clinic_dates() as $clinicDay) {
-                            $slotMap[$clinicDay['value']] = preview_visit_slots($clinicDay['value']);
-                        }
-                        echo json_encode($slotMap, JSON_UNESCAPED_SLASHES);
-                    ?></script>
                 </fieldset>
 
                 <button class="book-submit" type="submit"><?php echo h(patient_text('book_button')); ?></button>
             </form>
         </div>
     </section>
+
+    <?php patient_status_render(); ?>
 
     <section class="how">
         <div class="wrap how-grid">
@@ -159,6 +128,7 @@ patient_page_start(patient_text('book_title'), 'home');
             </article>
         </div>
     </section>
+    <?php patient_slot_map_json(); ?>
     <script src="assets/js/booking.js"></script>
 <?php
 patient_page_end();

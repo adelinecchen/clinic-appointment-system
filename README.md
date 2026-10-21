@@ -8,14 +8,17 @@ The browser never talks to MySQL directly. Pages and API scripts in `public/` ca
 
 ```
 public/                      Web root
-  index.php                  Patient homepage
-  book.php                   Visit request form
+  index.php                  Patient booking + check status
+  book.php                   Redirects to the homepage
   confirmation.php           Preview receipt after a valid form submit
   admin/index.php            Staff dashboard
+  admin/login.php            Staff login
+  admin/staff.php            Super admin accounts and invites
+  admin/invite.php           Invitee creates their password
   admin/patients.php         Sample patient list
-  admin/availability.php     Sample hours and 15-minute slots
+  admin/availability.php     Clinic calendar and 15-minute holds
   admin/waitlist.php         Sample waitlist
-  admin/notifications.php    Draft message text
+  admin/notifications.php    Editable patient texts
   api/health.php             JSON health check
   assets/css/                Patient and staff styles
   assets/js/booking.js       Adds family-member fields on the form
@@ -80,6 +83,7 @@ Leave that terminal open, then visit:
 - [http://localhost:8000/admin/availability.php](http://localhost:8000/admin/availability.php)
 - [http://localhost:8000/admin/waitlist.php](http://localhost:8000/admin/waitlist.php)
 - [http://localhost:8000/admin/notifications.php](http://localhost:8000/admin/notifications.php)
+- [http://localhost:8000/admin/staff.php](http://localhost:8000/admin/staff.php) super admin only
 - [http://localhost:8000/api/health.php](http://localhost:8000/api/health.php)
 
 Stop the server with Ctrl+C. Use one server at a time if both try to use the same port.
@@ -106,19 +110,18 @@ Expected body:
 
 Patient site:
 
-1. Open the homepage. Choose a date and an open 15-minute time, then enter a name and phone number.
-2. Choose **Add another person**. Each added person takes the next 15 minutes. If the next block is taken, the form asks you to book the rest as another visit. Submit **Book my visit**.
-3. The next page shows the visit and says a text is on the way. Use **Change this visit** to look it up, pick a new time, or cancel.
-4. Submit the form with an empty name. The form should stay put and list what to fix. The full time cannot be selected.
-5. Choose **Español** in the header. The booking screen should switch to Spanish.
+1. Open the homepage. Choose **First Visit** or **Follow-up visit**. Use the calendar to pick an open day, then a 15-minute time. Enter a name and phone number.
+2. Submit **Book my visit**. The next page shows the visit and says a text is on the way. Scroll to **Check your visit** on the homepage, or tap that link in the header, to look it up, pick a new time, or cancel.
+3. Submit the form with an empty name. The form should stay put and list what to fix. A blocked time cannot be selected.
+4. Choose **Español** in the header. The booking screen should switch to Spanish.
 
 Staff desk:
 
-1. Open the staff desk. The login page asks for a username and password. For this local demo, use **staff** and **clinic-desk**. Change those in `.env` with `ADMIN_USERNAME` and `ADMIN_PASSWORD` before sharing the computer.
+1. Open the staff desk. Super admin is **staff** / **clinic-desk**. A regular admin is **desk** / **clinic-desk**. Only a super admin sees **Staff**, where they can email an invite, create an account, change roles, or delete accounts.
 2. The sample day shows Booked 6, Confirmed 2, Not confirmed 3, and Cancelled 1. Sarah Smith is at 9:00 and Mark Smith has the next 15 minutes, 9:15. George Marcus and Luis Ortega have no reply. Amina Cole’s reminder was sent. Carlos Ruiz cancelled.
 3. In Follow up, the unconfirmed names are checked. Send text marks those reminders as sent on this sample day.
 4. On Carlos Ruiz’s row, choose Fill from waitlist and give that 15-minute block to Elena Park or James Okonkwo. The cancelled count drops, and that person leaves the waitlist.
-5. Use the sidebar for Patients, Availability, Waitlist, and Messages. The message drafts stay unsent.
+5. Use the sidebar for Patients, Availability, Waitlist, and Messages. On Messages, edit a text and save. The Follow-up box on Appointments uses that last template.
 6. On Availability, use the calendar to open a day for booking, or close one. On an open day, block a 15-minute time. The patient site only lists days the clinic opened. 10:30 AM starts blocked. **Log out** returns to the login page.
 7. Narrow the browser window. The patient page should stack, and the staff navigation should sit above the content.
 

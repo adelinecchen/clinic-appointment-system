@@ -44,7 +44,7 @@ patient_page_start(patient_text('thanks'), 'home');
                     </div>
                 </dl>
                 <div class="result-actions">
-                    <a class="book-submit" href="status.php"><?php echo h(patient_text('change')); ?></a>
+                    <a class="book-submit" href="index.php#status"><?php echo h(patient_text('change')); ?></a>
                     <a class="quiet-link" href="index.php"><?php echo h(patient_text('book_another')); ?></a>
                 </div>
             <?php endif; ?>

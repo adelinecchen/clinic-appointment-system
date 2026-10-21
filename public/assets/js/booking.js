@@ -29,7 +29,7 @@
         container.replaceChildren();
         open.forEach(function (slot) {
             var label = document.createElement("label");
-            label.className = "pill";
+            label.className = "time-chip";
             var input = document.createElement("input");
             input.type = "radio";
             input.name = "appointment_time";
@@ -51,122 +51,73 @@
         }
     }
 
+    function showMonth(cal, value) {
+        var months = Array.prototype.slice.call(cal.querySelectorAll("[data-month]"));
+        var label = cal.querySelector("[data-cal-label]");
+        var prev = cal.querySelector("[data-cal-prev]");
+        var next = cal.querySelector("[data-cal-next]");
+        var index = months.findIndex(function (month) {
+            return month.dataset.month === value;
+        });
+        if (index < 0) {
+            index = 0;
+            value = months[0] ? months[0].dataset.month : value;
+        }
+        months.forEach(function (month, position) {
+            month.hidden = position !== index;
+        });
+        cal.dataset.visible = value;
+        if (label && months[index]) {
+            label.textContent = months[index].dataset.label;
+        }
+        if (prev) {
+            prev.disabled = index <= 0;
+        }
+        if (next) {
+            next.disabled = index >= months.length - 1;
+        }
+    }
+
+    document.querySelectorAll(".book-cal").forEach(function (cal) {
+        showMonth(cal, cal.dataset.visible);
+        var prev = cal.querySelector("[data-cal-prev]");
+        var next = cal.querySelector("[data-cal-next]");
+        if (prev) {
+            prev.addEventListener("click", function () {
+                var months = Array.prototype.slice.call(cal.querySelectorAll("[data-month]"));
+                var index = months.findIndex(function (month) {
+                    return month.dataset.month === cal.dataset.visible;
+                });
+                if (index > 0) {
+                    showMonth(cal, months[index - 1].dataset.month);
+                }
+            });
+        }
+        if (next) {
+            next.addEventListener("click", function () {
+                var months = Array.prototype.slice.call(cal.querySelectorAll("[data-month]"));
+                var index = months.findIndex(function (month) {
+                    return month.dataset.month === cal.dataset.visible;
+                });
+                if (index < months.length - 1) {
+                    showMonth(cal, months[index + 1].dataset.month);
+                }
+            });
+        }
+    });
+
     document.querySelectorAll("form").forEach(function (form) {
         if (!form.querySelector(".time-pills")) {
             return;
         }
         form.addEventListener("change", function (event) {
             if (event.target.name === "appointment_date") {
+                var cal = form.querySelector(".book-cal");
+                if (cal) {
+                    showMonth(cal, event.target.value.slice(0, 7));
+                }
                 renderTimes(form);
-                form.dispatchEvent(new Event("input"));
             }
         });
     });
-
-    var form = document.querySelector(".book-card");
-    var list = document.querySelector("#party-list");
-    var addButton = document.querySelector("#add-person");
-    var template = document.querySelector("#party-template");
-    var note = document.querySelector("#party-note");
-    var plan = document.querySelector("#party-plan");
-    var nameField = document.querySelector("[name='patient_name']");
-
-    if (!form || !list || !addButton || !template || !note || !plan) {
-        return;
-    }
-
-    function selectedTime() {
-        var chosen = form.querySelector("input[name='appointment_time']:checked");
-        return chosen ? chosen.value : "";
-    }
-
-    function fitCount(start) {
-        var slots = slotsFor(form);
-        var index = slots.findIndex(function (slot) {
-            return slot.value === start;
-        });
-        if (index < 0 || !slots[index].available) {
-            return 0;
-        }
-        var count = 0;
-        for (var position = index; position < slots.length; position += 1) {
-            if (!slots[position].available) {
-                break;
-            }
-            count += 1;
-        }
-        return count;
-    }
-
-    function blocksFrom(start, count) {
-        var slots = slotsFor(form);
-        var index = slots.findIndex(function (slot) {
-            return slot.value === start;
-        });
-        var blocks = [];
-        if (index < 0) {
-            return blocks;
-        }
-        for (var step = 0; step < count && index + step < slots.length; step += 1) {
-            if (!slots[index + step].available) {
-                break;
-            }
-            blocks.push(slots[index + step]);
-        }
-        return blocks;
-    }
-
-    function partyFields() {
-        return Array.prototype.slice.call(list.querySelectorAll("input"));
-    }
-
-    function refresh() {
-        var fit = fitCount(selectedTime());
-        var people = 1 + partyFields().length;
-        addButton.disabled = people >= fit;
-        note.textContent = people > fit
-            ? (fit === 1 ? form.dataset.fitOne : form.dataset.fitMany.replace("2", String(fit)))
-            : form.dataset.hint;
-
-        var names = [nameField ? nameField.value.trim() : ""].concat(partyFields().map(function (field) {
-            return field.value.trim();
-        }));
-        plan.replaceChildren();
-        blocksFrom(selectedTime(), names.length).forEach(function (slot, index) {
-            var item = document.createElement("li");
-            var label = names[index] !== "" ? names[index] : form.dataset.another;
-            item.textContent = slot.label + " · " + label;
-            plan.appendChild(item);
-        });
-    }
-
-    addButton.addEventListener("click", function () {
-        if (addButton.disabled) {
-            refresh();
-            return;
-        }
-        var card = template.content.firstElementChild.cloneNode(true);
-        list.appendChild(card);
-        var field = card.querySelector("input");
-        if (field) {
-            field.focus();
-        }
-        refresh();
-    });
-
-    list.addEventListener("click", function (event) {
-        var button = event.target.closest("[data-remove-person]");
-        if (!button) {
-            return;
-        }
-        var card = button.closest(".party-card");
-        if (card) {
-            card.remove();
-        }
-        refresh();
-    });
-
-    form.addEventListener("input", refresh);
-    form.addEventListener("change", refresh);
-    refresh();
 }());

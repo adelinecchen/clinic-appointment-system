@@ -2,16 +2,7 @@
 
 declare(strict_types=1);
 
-function admin_credentials_match(string $username, string $password): bool
-{
-    $expectedUser = env_value('ADMIN_USERNAME', 'staff');
-    $expectedPassword = env_value('ADMIN_PASSWORD', 'clinic-desk');
-    if (strlen($username) !== strlen($expectedUser) || strlen($password) !== strlen($expectedPassword)) {
-        return false;
-    }
-
-    return hash_equals($expectedUser, $username) && hash_equals($expectedPassword, $password);
-}
+require_once __DIR__ . '/staff_accounts.php';
 
 function admin_require_login(): void
 {
@@ -20,11 +11,12 @@ function admin_require_login(): void
     }
 
     $script = basename((string) ($_SERVER['SCRIPT_NAME'] ?? ''));
-    if ($script === 'login.php') {
+    if (in_array($script, ['login.php', 'invite.php'], true)) {
         return;
     }
 
-    if (empty($_SESSION['admin_user'])) {
+    if (staff_current() === null) {
+        unset($_SESSION['admin_user'], $_SESSION['admin_id'], $_SESSION['admin_role']);
         header('Location: login.php');
         exit;
     }
@@ -39,6 +31,7 @@ function admin_page_start(string $title, string $active): void
         'notifications' => count(preview_unconfirmed(preview_appointments())),
         'waitlist' => count(preview_waitlist()),
     ];
+    $staff = staff_current();
     $items = [
         'dashboard' => ['Appointments', 'index.php'],
         'patients' => ['Patients', 'patients.php'],
@@ -46,6 +39,9 @@ function admin_page_start(string $title, string $active): void
         'waitlist' => ['Waitlist', 'waitlist.php'],
         'availability' => ['Availability', 'availability.php'],
     ];
+    if (staff_is_super()) {
+        $items['staff'] = ['Staff', 'staff.php'];
+    }
     ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -63,7 +59,7 @@ function admin_page_start(string $title, string $active): void
                 <span class="mark" aria-hidden="true">G</span>
                 <span>
                     <strong><?php echo h($clinic['short']); ?></strong>
-                    <span><?php echo h($clinic['doctor']); ?></span>
+                    <span><?php echo h($staff !== null ? $staff['name'] . ' · ' . staff_role_label((string) $staff['role']) : $clinic['doctor']); ?></span>
                 </span>
             </a>
             <nav aria-label="Staff">

@@ -187,6 +187,136 @@ function preview_clinic_dates(): array
     return preview_open_dates();
 }
 
+function preview_visit_label(string $type): string
+{
+    return $type === 'follow_up' ? 'Follow-up visit' : 'First Visit';
+}
+
+function preview_booking_months(string $selected): array
+{
+    $openValues = array_column(preview_open_dates(), 'value');
+    if ($openValues === []) {
+        return [];
+    }
+
+    if ($selected === '' || !in_array($selected, $openValues, true)) {
+        $selected = $openValues[0];
+    }
+
+    $zone = new DateTimeZone('America/New_York');
+    $first = new DateTimeImmutable(substr(min($openValues), 0, 7) . '-01', $zone);
+    $last = new DateTimeImmutable(substr(max($openValues), 0, 7) . '-01', $zone);
+    $today = preview_today()->format('Y-m-d');
+    $months = [];
+    $cursor = $first;
+
+    while ($cursor <= $last) {
+        $days = [];
+        $daysInMonth = (int) $cursor->format('t');
+        for ($number = 1; $number <= $daysInMonth; $number++) {
+            $day = $cursor->setDate((int) $cursor->format('Y'), (int) $cursor->format('n'), $number);
+            $value = $day->format('Y-m-d');
+            $days[] = [
+                'number' => $number,
+                'value' => $value,
+                'open' => in_array($value, $openValues, true),
+                'selected' => $value === $selected,
+                'past' => $value < $today,
+            ];
+        }
+        $months[] = [
+            'value' => $cursor->format('Y-m'),
+            'label' => $cursor->format('F Y'),
+            'pad' => (int) $cursor->format('w'),
+            'days' => $days,
+        ];
+        $cursor = $cursor->modify('first day of next month');
+    }
+
+    return $months;
+}
+
+function preview_message_path(): string
+{
+    return dirname(__DIR__) . '/storage/messages.json';
+}
+
+function preview_message_defaults(): array
+{
+    return [
+        'booking' => 'Hi {name}, this is {clinic}. We booked your visit on {date} at {time}. Reply YES to confirm, or open the link in this text.',
+        'two_day' => 'Hi {name}, this is {clinic}. Please confirm your visit on {date} at {time}. Reply YES or NO, or use the confirmation link.',
+        'one_day' => 'Hi {name}, this is {clinic}. We still need a confirmation for tomorrow at {time}. Reply YES or tap the link. If we do not hear back, the desk will call.',
+        'follow_up' => 'Hi {name}, this is {clinic}. Please tap to confirm your visit at {time}.',
+    ];
+}
+
+function preview_message_templates(): array
+{
+    $defaults = preview_message_defaults();
+    $path = preview_message_path();
+    if (!is_readable($path)) {
+        return $defaults;
+    }
+
+    $decoded = json_decode((string) file_get_contents($path), true);
+    if (!is_array($decoded)) {
+        return $defaults;
+    }
+
+    foreach ($defaults as $key => $text) {
+        $custom = trim((string) ($decoded[$key] ?? ''));
+        if ($custom !== '') {
+            $defaults[$key] = $custom;
+        }
+    }
+
+    return $defaults;
+}
+
+function preview_save_message_templates(array $templates): bool
+{
+    $clean = [];
+    foreach (preview_message_defaults() as $key => $default) {
+        $text = trim((string) ($templates[$key] ?? ''));
+        $clean[$key] = $text !== '' ? $text : $default;
+    }
+
+    $directory = dirname(preview_message_path());
+    if (!is_dir($directory) && !mkdir($directory, 0775, true) && !is_dir($directory)) {
+        return false;
+    }
+
+    $handle = fopen(preview_message_path(), 'c+');
+    if ($handle === false) {
+        return false;
+    }
+
+    flock($handle, LOCK_EX);
+    ftruncate($handle, 0);
+    rewind($handle);
+    $written = fwrite($handle, json_encode($clean, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+    fflush($handle);
+    flock($handle, LOCK_UN);
+    fclose($handle);
+
+    return $written !== false;
+}
+
+function preview_fill_message(string $template, array $vars): string
+{
+    $clinic = preview_clinic();
+    $replacements = [
+        '{clinic}' => $clinic['name'],
+        '{name}' => (string) ($vars['name'] ?? 'Sarah Smith'),
+        '{date}' => (string) ($vars['date'] ?? 'October 25, 2026'),
+        '{time}' => (string) ($vars['time'] ?? '9:00 AM'),
+        '{phone}' => (string) ($vars['phone'] ?? '(757) 555-1234'),
+    ];
+
+    return strtr($template, $replacements);
+}
+
 function preview_time_is_open(string $date, string $time): bool
 {
     $state = preview_availability();
@@ -282,7 +412,6 @@ function preview_booking_defaults(): array
         'appointment_time' => '10:00',
         'patient_name' => '',
         'patient_phone' => '',
-        'party' => [],
     ];
 }
 
@@ -339,45 +468,20 @@ function preview_validate_booking(array $input): array
         $errors['patient_phone'] = 'phone';
     }
 
-    $partyInput = $input['party_name'] ?? [];
-    if (!is_array($partyInput)) {
-        $partyInput = [];
-    }
-    $party = [];
-    foreach ($partyInput as $partyName) {
-        $partyName = trim((string) $partyName);
-        if ($partyName === '') {
-            continue;
-        }
-        if (preview_text_length($partyName) < 2 || preview_text_length($partyName) > 80) {
-            $errors['party_name'] = 'party_name';
-        }
-        $party[] = $partyName;
-    }
-    $values['party'] = $party;
-
     $people = [];
-    if ($matchedSlot !== null && !isset($errors['patient_name'])) {
-        $assigned = preview_slots_from($matchedSlot['value'], count($party) + 1, $date);
-        if ($assigned === null) {
-            $errors['party'] = (string) preview_fit_count($matchedSlot['value'], $date);
-        } elseif ($errors === []) {
-            $names = array_merge([$name], $party);
-            foreach ($assigned as $index => $slot) {
-                $people[] = [
-                    'name' => $names[$index],
-                    'time' => $slot['label'],
-                    'time_value' => $slot['value'],
-                ];
-            }
-        }
+    if ($matchedSlot !== null && $errors === []) {
+        $people[] = [
+            'name' => $name,
+            'time' => $matchedSlot['label'],
+            'time_value' => $matchedSlot['value'],
+        ];
     }
 
     $booking = null;
     if ($errors === []) {
         $booking = [
             'visit_type' => $values['visit_type'],
-            'visit_label' => $values['visit_type'] === 'wellness' ? 'Wellness exam' : 'Follow-up visit',
+            'visit_label' => preview_visit_label($values['visit_type']),
             'date' => $matchedDay['full'],
             'date_value' => $matchedDay['value'],
             'time' => $people[0]['time'],
@@ -421,8 +525,8 @@ function preview_appointment_seed(): array
         ['id' => 'sarah', 'time' => '9:00 AM', 'time_value' => '09:00', 'patient' => 'Sarah Smith', 'visit' => 'Follow-up visit', 'phone' => '(757) 555-1234', 'phone_digits' => '7575551234', 'status' => 'confirmed', 'note' => ''],
         ['id' => 'mark', 'time' => '9:15 AM', 'time_value' => '09:15', 'patient' => 'Mark Smith', 'visit' => 'New patient', 'phone' => 'Sarah’s phone', 'phone_digits' => '7575551234', 'status' => 'confirmed', 'note' => 'Same booking as Sarah. His own 15 minutes.'],
         ['id' => 'george', 'time' => '9:45 AM', 'time_value' => '09:45', 'patient' => 'George Marcus', 'visit' => 'New patient', 'phone' => '(804) 679-1210', 'phone_digits' => '8046791210', 'status' => 'no_reply', 'note' => ''],
-        ['id' => 'amina', 'time' => '10:15 AM', 'time_value' => '10:15', 'patient' => 'Amina Cole', 'visit' => 'Wellness exam', 'phone' => '(804) 555-0148', 'phone_digits' => '8045550148', 'status' => 'reminder_sent', 'note' => ''],
-        ['id' => 'luis', 'time' => '10:45 AM', 'time_value' => '10:45', 'patient' => 'Luis Ortega', 'visit' => 'Wellness exam', 'phone' => '(757) 555-0190', 'phone_digits' => '7575550190', 'status' => 'no_reply', 'note' => ''],
+        ['id' => 'amina', 'time' => '10:15 AM', 'time_value' => '10:15', 'patient' => 'Amina Cole', 'visit' => 'First Visit', 'phone' => '(804) 555-0148', 'phone_digits' => '8045550148', 'status' => 'reminder_sent', 'note' => ''],
+        ['id' => 'luis', 'time' => '10:45 AM', 'time_value' => '10:45', 'patient' => 'Luis Ortega', 'visit' => 'First Visit', 'phone' => '(757) 555-0190', 'phone_digits' => '7575550190', 'status' => 'no_reply', 'note' => ''],
         ['id' => 'carlos', 'time' => '11:15 AM', 'time_value' => '11:15', 'patient' => 'Carlos Ruiz', 'visit' => 'Follow-up visit', 'phone' => '(804) 555-0114', 'phone_digits' => '8045550114', 'status' => 'cancelled', 'note' => 'Cancelled by patient'],
     ];
 }
@@ -430,7 +534,7 @@ function preview_appointment_seed(): array
 function preview_waitlist_seed(): array
 {
     return [
-        ['id' => 'elena', 'name' => 'Elena Park', 'phone' => '(757) 555-0166', 'phone_digits' => '7575550166', 'visit' => 'Wellness exam', 'note' => 'Can take a morning block.'],
+        ['id' => 'elena', 'name' => 'Elena Park', 'phone' => '(757) 555-0166', 'phone_digits' => '7575550166', 'visit' => 'First Visit', 'note' => 'Can take a morning block.'],
         ['id' => 'james', 'name' => 'James Okonkwo', 'phone' => '(804) 555-0177', 'phone_digits' => '8045550177', 'visit' => 'Follow-up visit', 'note' => 'Asked for the first open 15 minutes.'],
     ];
 }
@@ -548,28 +652,48 @@ function preview_waitlist(): array
 
 function preview_reminder_text(array $appointment): string
 {
-    $clinic = preview_clinic();
-
-    return 'Hi ' . $appointment['patient'] . ', this is ' . $clinic['name'] . '. Please tap to confirm your visit at ' . $appointment['time'] . '.';
+    return preview_fill_message(preview_message_templates()['follow_up'], [
+        'name' => $appointment['patient'] ?? '',
+        'time' => $appointment['time'] ?? '',
+        'date' => $appointment['date'] ?? preview_desk_date()->format('F j, Y'),
+        'phone' => $appointment['phone'] ?? '',
+    ]);
 }
 
 function preview_notifications(): array
 {
+    $templates = preview_message_templates();
+    $sample = [
+        'name' => 'Sarah Smith',
+        'date' => 'October 5, 2026',
+        'time' => '9:00 AM',
+        'phone' => '(757) 555-1234',
+    ];
+
     return [
         [
+            'key' => 'booking',
             'title' => 'Booking confirmation',
-            'audience' => 'Sarah Smith, when the visit is booked · Sep 22, 9:58 a.m.',
-            'message' => 'Global Health and Education clinic booked Sarah Smith for 9:00 a.m. and Mark Smith for the next 15 minutes, 9:15 a.m. Reply YES to confirm, or open the link in this text.',
+            'when' => 'Sent when the visit is booked',
+            'message' => preview_fill_message($templates['booking'], $sample),
         ],
         [
-            'title' => '2-day notification',
-            'audience' => 'Sarah Smith, two days before · Sep 25, 8:00 a.m.',
-            'message' => 'Please confirm Sarah at 9:00 a.m. and Mark at 9:15 a.m. Each person has their own 15 minutes. Reply YES or NO, or use the confirmation link.',
+            'key' => 'two_day',
+            'title' => '2-day reminder',
+            'when' => 'Two days before the visit',
+            'message' => preview_fill_message($templates['two_day'], $sample),
         ],
         [
-            'title' => '1-day notification',
-            'audience' => 'Sarah Smith, one day before if there is no reply · Sep 26, 8:00 a.m.',
-            'message' => 'We still need a confirmation for tomorrow. The sample marks this text confirmed. If there is still no reply, the desk calls on the day of the visit.',
+            'key' => 'one_day',
+            'title' => '1-day reminder',
+            'when' => 'One day before if there is no reply',
+            'message' => preview_fill_message($templates['one_day'], $sample),
+        ],
+        [
+            'key' => 'follow_up',
+            'title' => 'Follow-up text',
+            'when' => 'From the desk when someone has not confirmed',
+            'message' => preview_fill_message($templates['follow_up'], $sample),
         ],
     ];
 }

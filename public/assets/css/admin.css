@@ -411,6 +411,24 @@ a.cal-day:hover { background: #f3faf7; }
     margin-top: 0.8rem;
 }
 .login-hint { color: var(--muted); font-size: 0.9rem; margin-top: 0.9rem; }
+.desk-note {
+    background: var(--mint);
+    color: var(--teal-deep);
+    border-radius: 0.7rem;
+    padding: 0.55rem 0.7rem;
+    margin-bottom: 0.8rem;
+}
+.staff-form, .notice textarea { display: grid; gap: 0.65rem; }
+.staff-form label, .notice label { display: grid; gap: 0.3rem; font-weight: 600; }
+.staff-form input, .staff-form select, .notice textarea {
+    width: 100%;
+    border: 1.5px solid #c9ddd6;
+    border-radius: 0.7rem;
+    padding: 0.65rem 0.75rem;
+    font: inherit;
+}
+.inline-form { display: inline; }
+.inline-form .btn { margin-top: 0.35rem; }
 .login-back { display: inline-block; margin-top: 0.4rem; }
 
 a:focus-visible, button:focus-visible {

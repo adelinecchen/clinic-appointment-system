@@ -7,12 +7,12 @@ require_once __DIR__ . '/../../src/preview_data.php';
 require_once __DIR__ . '/../../src/admin_layout.php';
 
 if (isset($_GET['logout'])) {
-    unset($_SESSION['admin_user']);
+    staff_logout();
     header('Location: login.php');
     exit;
 }
 
-if (!empty($_SESSION['admin_user'])) {
+if (staff_current() !== null) {
     header('Location: index.php');
     exit;
 }
@@ -22,9 +22,9 @@ $username = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $username = trim((string) ($_POST['username'] ?? ''));
     $password = (string) ($_POST['password'] ?? '');
-    if (admin_credentials_match($username, $password)) {
-        session_regenerate_id(true);
-        $_SESSION['admin_user'] = $username;
+    $account = staff_authenticate($username, $password);
+    if ($account !== null) {
+        staff_login($account);
         header('Location: index.php');
         exit;
     }
@@ -32,7 +32,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $clinic = preview_clinic();
-$usingDefault = env_value('ADMIN_PASSWORD', 'clinic-desk') === 'clinic-desk' && env_value('ADMIN_USERNAME', 'staff') === 'staff';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -61,9 +60,7 @@ $usingDefault = env_value('ADMIN_PASSWORD', 'clinic-desk') === 'clinic-desk' && 
             </label>
             <button class="btn btn-solid btn-wide" type="submit">Log in</button>
         </form>
-        <?php if ($usingDefault): ?>
-            <p class="login-hint">For this local demo, sign in with <strong>staff</strong> and <strong>clinic-desk</strong>.</p>
-        <?php endif; ?>
+        <p class="login-hint">Local demo: super admin is <strong>staff</strong> / <strong>clinic-desk</strong>. A regular admin is <strong>desk</strong> / <strong>clinic-desk</strong>.</p>
         <a class="side-link login-back" href="../index.php">Patient website</a>
     </main>
 </body>

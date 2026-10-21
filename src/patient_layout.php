@@ -37,7 +37,7 @@ function patient_page_start(string $title, string $active): void
                     <a href="<?php echo h($page . '?lang=en'); ?>"<?php echo $lang === 'en' ? ' aria-current="true"' : ''; ?>><?php echo h(patient_text('english')); ?></a>
                     <a href="<?php echo h($page . '?lang=es'); ?>"<?php echo $lang === 'es' ? ' aria-current="true"' : ''; ?>><?php echo h(patient_text('spanish')); ?></a>
                 </div>
-                <a class="tool-link<?php echo $active === 'status' ? ' is-current' : ''; ?>" href="status.php"><?php echo h(patient_text('check')); ?></a>
+                <a class="tool-link<?php echo $active === 'status' ? ' is-current' : ''; ?>" href="index.php#status"><?php echo h(patient_text('check')); ?></a>
                 <a class="tool-link tool-staff" href="admin/index.php"><?php echo h(patient_text('staff')); ?></a>
             </div>
         </div>
