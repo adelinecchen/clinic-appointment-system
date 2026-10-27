@@ -32,5 +32,9 @@
     }
 
     form.addEventListener("change", refresh);
+    form.addEventListener("submit", function () {
+        button.disabled = true;
+        button.textContent = "Sending…";
+    });
     refresh();
 }());

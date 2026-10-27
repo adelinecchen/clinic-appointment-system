@@ -52,8 +52,15 @@ function patient_page_start(string $title, string $active): void
 
 function patient_page_end(): void
 {
+    $clinic = preview_clinic();
     ?>
     </main>
+    <footer class="site-foot">
+        <div class="wrap">
+            <p><?php echo h($clinic['name']); ?></p>
+            <p><?php echo h($clinic['doctor']); ?></p>
+        </div>
+    </footer>
 </body>
 </html>
     <?php

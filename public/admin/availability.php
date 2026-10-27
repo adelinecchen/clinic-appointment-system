@@ -133,11 +133,12 @@ function availability_hours_fields(array $hours, string $action, string $date, s
     <?php
 }
 
-admin_page_start('Availability', 'availability');
+admin_page_start('Clinic hours', 'settings');
 ?>
     <header class="page-head">
         <div>
-            <h1>Availability</h1>
+            <p class="eyebrow">Settings</p>
+            <h1>Clinic hours</h1>
         </div>
         <p class="head-note">Open a day, set the hours, and choose how long each visit is. The times patients can book are made from that.</p>
     </header>

@@ -67,10 +67,11 @@ $pending = array_values(array_filter(
     static fn (array $invite): bool => ($invite['status'] ?? '') === 'pending'
 ));
 
-admin_page_start('Staff', 'staff');
+admin_page_start('Staff', 'settings');
 ?>
     <header class="page-head">
         <div>
+            <p class="eyebrow">Settings</p>
             <h1>Staff</h1>
         </div>
         <p class="head-note">Create an account for someone, or email them a link so they can choose a password. Super admins can change roles and delete accounts.</p>

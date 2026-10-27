@@ -29,6 +29,7 @@ admin_page_start('Messages', 'notifications');
 ?>
     <header class="page-head">
         <div>
+            <p class="eyebrow">Messages</p>
             <h1>Messages</h1>
         </div>
         <p class="head-note">Edit the texts patients get. Use {name}, {time}, {date}, {clinic}, and {phone}. Follow-up texts on Appointments use the last template.</p>

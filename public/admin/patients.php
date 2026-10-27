@@ -158,10 +158,11 @@ $filters = [
     'all' => 'All',
 ];
 
-admin_page_start('Patients', 'patients');
+admin_page_start('Schedule', 'schedule');
 ?>
     <header class="page-head">
         <div>
+            <p class="eyebrow">Schedule</p>
             <h1>Upcoming visits</h1>
         </div>
         <p class="head-note">When someone calls the desk, find the visit by name or phone. You can cancel it, change the time, send a reminder, or hold an unconfirmed block for a waitlist patient.</p>
@@ -219,6 +220,7 @@ admin_page_start('Patients', 'patients');
                             <?php endif; ?>
                         </div>
                         <div class="visit-actions">
+                            <?php admin_type_badge((string) $appointment['visit']); ?>
                             <?php admin_status($appointment['status'], $appointment['status_label']); ?>
                             <?php if ($appointment['status'] === 'cancelled'): ?>
                                 <form method="post">
