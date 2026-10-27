@@ -1,12 +1,13 @@
 # Secrets and local configuration
 .env
-.env.local
+.env.*
+!.env.example
 
 # Dependencies (none are required yet)
-vendor/
+/vendor/
 
 # Local availability blocks saved by the staff desk
-storage/
+/storage/
 
 # Logs and OS/editor files
 *.log
