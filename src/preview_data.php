@@ -58,38 +58,221 @@ function preview_string_list(mixed $items): array
     return array_values(array_filter($items, 'is_string'));
 }
 
+function preview_block_minutes(): array
+{
+    return [10, 15, 20, 30, 45, 60];
+}
+
+function preview_default_day_hours(): array
+{
+    return [
+        'start' => '09:00',
+        'end' => '17:00',
+        'block' => 15,
+    ];
+}
+
+function preview_legacy_day_hours(): array
+{
+    return [
+        'start' => '09:00',
+        'end' => '11:00',
+        'block' => 15,
+    ];
+}
+
+function preview_date_looks_valid(string $date): bool
+{
+    $day = DateTimeImmutable::createFromFormat('!Y-m-d', $date, new DateTimeZone('America/New_York'));
+
+    return $day !== false && $day->format('Y-m-d') === $date;
+}
+
+function preview_normalize_time(string $value): ?string
+{
+    foreach (['!H:i', '!H:i:s', '!G:i'] as $format) {
+        $time = DateTimeImmutable::createFromFormat($format, $value);
+        if ($time !== false) {
+            return $time->format('H:i');
+        }
+    }
+
+    return null;
+}
+
+function preview_generated_slot_values(string $start, string $end, int $block): array
+{
+    $cursor = DateTimeImmutable::createFromFormat('!H:i', $start);
+    $close = DateTimeImmutable::createFromFormat('!H:i', $end);
+    if ($cursor === false || $close === false || $block < 1) {
+        return [];
+    }
+
+    $values = [];
+    while (true) {
+        $finish = $cursor->modify('+' . $block . ' minutes');
+        if ($finish > $close) {
+            break;
+        }
+        $values[] = $cursor->format('H:i');
+        $cursor = $finish;
+    }
+
+    return $values;
+}
+
+function preview_normalize_hours(mixed $hours, ?array $fallback = null): ?array
+{
+    if (!is_array($hours)) {
+        return $fallback;
+    }
+
+    $start = preview_normalize_time((string) ($hours['start'] ?? ''));
+    $end = preview_normalize_time((string) ($hours['end'] ?? ''));
+    $block = (int) ($hours['block'] ?? 0);
+    if ($start === null || $end === null || $start >= $end || !in_array($block, preview_block_minutes(), true)) {
+        return $fallback;
+    }
+    if (preview_generated_slot_values($start, $end, $block) === []) {
+        return $fallback;
+    }
+
+    return [
+        'start' => $start,
+        'end' => $end,
+        'block' => $block,
+    ];
+}
+
+function preview_hours_from_input(array $input): array
+{
+    $hours = preview_normalize_hours([
+        'start' => (string) ($input['start'] ?? ''),
+        'end' => (string) ($input['end'] ?? ''),
+        'block' => (string) ($input['block'] ?? ''),
+    ]);
+    if ($hours !== null) {
+        return ['hours' => $hours, 'error' => ''];
+    }
+
+    $start = preview_normalize_time((string) ($input['start'] ?? ''));
+    $end = preview_normalize_time((string) ($input['end'] ?? ''));
+    if ($start === null || $end === null || $start >= $end) {
+        return ['hours' => null, 'error' => 'hours'];
+    }
+
+    return ['hours' => null, 'error' => 'blocks'];
+}
+
+function preview_sync_open_dates(array $state): array
+{
+    $days = [];
+    foreach ($state['days'] ?? [] as $date => $hours) {
+        if (!is_string($date) || !preview_date_looks_valid($date)) {
+            continue;
+        }
+        $normalized = preview_normalize_hours($hours);
+        if ($normalized !== null) {
+            $days[$date] = $normalized;
+        }
+    }
+    ksort($days);
+    $state['days'] = $days;
+    $state['open_dates'] = array_keys($days);
+
+    return $state;
+}
+
+function preview_day_hours(string $date): ?array
+{
+    $hours = preview_availability()['days'][$date] ?? null;
+
+    return is_array($hours) ? $hours : null;
+}
+
+function preview_hours_suggestion(?string $date = null): array
+{
+    if ($date !== null) {
+        $current = preview_day_hours($date);
+        if ($current !== null) {
+            return $current;
+        }
+    }
+
+    $days = preview_availability()['days'];
+    if ($days !== []) {
+        return (array) end($days);
+    }
+
+    return preview_default_day_hours();
+}
+
+function preview_hours_summary(array $hours): string
+{
+    $start = preview_slot_label((string) $hours['start']);
+    $end = preview_slot_label((string) $hours['end']);
+    $block = (int) $hours['block'];
+
+    return $start . ' to ' . $end . ', ' . $block . '-minute visits';
+}
+
 function preview_availability(): array
 {
     $state = [
-        'open_dates' => preview_suggested_open_dates(),
+        'days' => [],
+        'open_dates' => [],
         'closed_slots' => [],
         'opened_slots' => [],
     ];
     $path = preview_availability_path();
     if (!is_readable($path)) {
-        return $state;
+        foreach (preview_suggested_open_dates() as $date) {
+            $state['days'][$date] = preview_default_day_hours();
+        }
+
+        return preview_sync_open_dates($state);
     }
 
     $decoded = json_decode((string) file_get_contents($path), true);
     if (!is_array($decoded)) {
-        return $state;
+        foreach (preview_suggested_open_dates() as $date) {
+            $state['days'][$date] = preview_default_day_hours();
+        }
+
+        return preview_sync_open_dates($state);
     }
 
     $state['closed_slots'] = preview_string_list($decoded['closed_slots'] ?? []);
     $state['opened_slots'] = preview_string_list($decoded['opened_slots'] ?? []);
+
+    $openDates = [];
     if (array_key_exists('open_dates', $decoded)) {
-        $state['open_dates'] = preview_string_list($decoded['open_dates']);
+        $openDates = preview_string_list($decoded['open_dates']);
     } else {
         $closed = preview_string_list($decoded['closed_dates'] ?? []);
-        $state['open_dates'] = array_values(array_filter(
+        $openDates = array_values(array_filter(
             preview_suggested_open_dates(),
             static fn (string $date): bool => !in_array($date, $closed, true)
         ));
     }
 
-    sort($state['open_dates']);
+    $storedDays = is_array($decoded['days'] ?? null) ? $decoded['days'] : [];
+    foreach ($storedDays as $date => $hours) {
+        if (!is_string($date) || !preview_date_looks_valid($date)) {
+            continue;
+        }
+        $normalized = preview_normalize_hours($hours);
+        if ($normalized !== null) {
+            $state['days'][$date] = $normalized;
+        }
+    }
+    foreach ($openDates as $date) {
+        if (preview_date_looks_valid($date) && !isset($state['days'][$date])) {
+            $state['days'][$date] = preview_legacy_day_hours();
+        }
+    }
 
-    return $state;
+    return preview_sync_open_dates($state);
 }
 
 function preview_date_is_choosable(string $date): bool
@@ -112,6 +295,9 @@ function preview_save_availability(array $state): bool
         return false;
     }
 
+    $state = preview_sync_open_dates($state);
+    unset($state['opened_slots']);
+
     $handle = fopen(preview_availability_path(), 'c+');
     if ($handle === false) {
         return false;
@@ -126,11 +312,6 @@ function preview_save_availability(array $state): bool
     fclose($handle);
 
     return $written !== false;
-}
-
-function preview_default_blocked_times(): array
-{
-    return ['10:30'];
 }
 
 function preview_relationships(): array
@@ -319,32 +500,31 @@ function preview_fill_message(string $template, array $vars): string
 
 function preview_time_is_open(string $date, string $time): bool
 {
-    $state = preview_availability();
-    $key = $date . '|' . $time;
-    if (in_array($key, $state['closed_slots'], true)) {
+    $hours = preview_day_hours($date);
+    if ($hours === null) {
         return false;
     }
-    if (in_array($time, preview_default_blocked_times(), true) && !in_array($key, $state['opened_slots'], true)) {
+    if (!in_array($time, preview_generated_slot_values($hours['start'], $hours['end'], (int) $hours['block']), true)) {
         return false;
     }
 
-    return true;
+    return !in_array($date . '|' . $time, preview_availability()['closed_slots'], true);
 }
 
 function preview_visit_slots(string $date): array
 {
-    $slots = [];
-    $cursor = new DateTimeImmutable('09:00');
-    $last = new DateTimeImmutable('11:00');
+    $hours = preview_day_hours($date);
+    if ($hours === null) {
+        return [];
+    }
 
-    while ($cursor <= $last) {
-        $value = $cursor->format('H:i');
+    $slots = [];
+    foreach (preview_generated_slot_values($hours['start'], $hours['end'], (int) $hours['block']) as $value) {
         $slots[] = [
             'value' => $value,
-            'label' => $cursor->format('g:i A'),
+            'label' => preview_slot_label($value),
             'available' => preview_time_is_open($date, $value),
         ];
-        $cursor = $cursor->modify('+15 minutes');
     }
 
     return $slots;
@@ -409,7 +589,7 @@ function preview_booking_defaults(): array
     return [
         'visit_type' => 'wellness',
         'appointment_date' => preview_open_dates()[0]['value'] ?? '',
-        'appointment_time' => '10:00',
+        'appointment_time' => preview_open_slots(preview_open_dates()[0]['value'] ?? '')[0]['value'] ?? '',
         'patient_name' => '',
         'patient_phone' => '',
     ];
@@ -621,16 +801,296 @@ function preview_unconfirmed(array $appointments): array
 function preview_patients(): array
 {
     $patients = [];
-    foreach (preview_appointment_seed() as $appointment) {
+    $seen = [];
+    foreach (preview_upcoming_appointments() as $appointment) {
+        $key = $appointment['phone_digits'] !== '' ? $appointment['phone_digits'] : $appointment['patient'];
+        if (isset($seen[$key])) {
+            continue;
+        }
+        $seen[$key] = true;
         $patients[] = [
             'name' => $appointment['patient'],
             'phone' => $appointment['phone'],
             'visit' => $appointment['visit'],
-            'household' => $appointment['note'] !== '' ? $appointment['note'] : 'On the sample clinic day',
+            'household' => $appointment['note'] !== '' ? $appointment['note'] : 'Upcoming visit',
         ];
     }
 
     return $patients;
+}
+
+function preview_session_string_list(string $key): array
+{
+    if (session_status() !== PHP_SESSION_ACTIVE) {
+        return [];
+    }
+
+    return preview_string_list($_SESSION[$key] ?? []);
+}
+
+function preview_session_map(string $key): array
+{
+    if (session_status() !== PHP_SESSION_ACTIVE || !is_array($_SESSION[$key] ?? null)) {
+        return [];
+    }
+
+    return $_SESSION[$key];
+}
+
+function preview_upcoming_templates(): array
+{
+    return [
+        ['id' => 'up-sarah', 'patient' => 'Sarah Smith', 'visit' => 'Follow-up visit', 'phone' => '(757) 555-1234', 'phone_digits' => '7575551234', 'status' => 'confirmed', 'note' => ''],
+        ['id' => 'up-george', 'patient' => 'George Marcus', 'visit' => 'First Visit', 'phone' => '(804) 679-1210', 'phone_digits' => '8046791210', 'status' => 'no_reply', 'note' => 'Has not answered the reminder'],
+        ['id' => 'up-amina', 'patient' => 'Amina Cole', 'visit' => 'First Visit', 'phone' => '(804) 555-0148', 'phone_digits' => '8045550148', 'status' => 'reminder_sent', 'note' => ''],
+        ['id' => 'up-luis', 'patient' => 'Luis Ortega', 'visit' => 'First Visit', 'phone' => '(757) 555-0190', 'phone_digits' => '7575550190', 'status' => 'no_reply', 'note' => ''],
+        ['id' => 'up-priya', 'patient' => 'Priya Shah', 'visit' => 'First Visit', 'phone' => '(804) 555-0188', 'phone_digits' => '8045550188', 'status' => 'confirmed', 'note' => ''],
+        ['id' => 'up-omar', 'patient' => 'Omar Haddad', 'visit' => 'Follow-up visit', 'phone' => '(757) 555-0133', 'phone_digits' => '7575550133', 'status' => 'confirmed', 'note' => ''],
+        ['id' => 'up-carlos', 'patient' => 'Carlos Ruiz', 'visit' => 'Follow-up visit', 'phone' => '(804) 555-0114', 'phone_digits' => '8045550114', 'status' => 'confirmed', 'note' => ''],
+    ];
+}
+
+function preview_upcoming_seed(): array
+{
+    $rows = [];
+    $index = 0;
+    $templates = preview_upcoming_templates();
+    foreach (preview_open_dates() as $day) {
+        $slots = preview_open_slots($day['value']);
+        $take = min(3, count($slots), count($templates) - $index);
+        for ($offset = 0; $offset < $take; $offset++) {
+            $person = $templates[$index];
+            $slot = $slots[$offset];
+            $rows[] = [
+                'id' => $person['id'],
+                'date' => $day['value'],
+                'date_label' => $day['full'],
+                'time' => $slot['label'],
+                'time_value' => $slot['value'],
+                'patient' => $person['patient'],
+                'visit' => $person['visit'],
+                'phone' => $person['phone'],
+                'phone_digits' => $person['phone_digits'],
+                'status' => $person['status'],
+                'note' => $person['note'],
+                'source' => 'seed',
+                'held_for' => '',
+            ];
+            $index++;
+        }
+        if ($index >= count($templates)) {
+            break;
+        }
+    }
+
+    return $rows;
+}
+
+function preview_live_booking_row(): ?array
+{
+    if (session_status() !== PHP_SESSION_ACTIVE) {
+        return null;
+    }
+
+    $booking = $_SESSION['booking_preview'] ?? null;
+    if (!is_array($booking)) {
+        return null;
+    }
+
+    $date = (string) ($booking['date_value'] ?? '');
+    if ($date === '' || $date < preview_today()->format('Y-m-d')) {
+        return null;
+    }
+
+    $status = (string) ($booking['status'] ?? 'booked');
+    $cancelled = in_array($status, ['canceled', 'cancelled'], true);
+    $digits = preg_replace('/\D+/', '', (string) ($booking['patient_phone'] ?? '')) ?? '';
+
+    return [
+        'id' => 'live-booking',
+        'date' => $date,
+        'date_label' => (string) ($booking['date'] ?? $date),
+        'time' => (string) ($booking['time'] ?? ''),
+        'time_value' => (string) ($booking['time_value'] ?? ''),
+        'patient' => (string) ($booking['patient_name'] ?? ''),
+        'visit' => (string) ($booking['visit_label'] ?? preview_visit_label((string) ($booking['visit_type'] ?? 'wellness'))),
+        'phone' => (string) ($booking['patient_phone'] ?? ''),
+        'phone_digits' => $digits,
+        'status' => $cancelled ? 'cancelled' : 'no_reply',
+        'note' => $cancelled ? 'Cancelled' : 'Booked on the patient website',
+        'source' => 'live',
+        'held_for' => '',
+    ];
+}
+
+function preview_sync_live_booking(array $appointment): void
+{
+    if (($appointment['source'] ?? '') !== 'live' || session_status() !== PHP_SESSION_ACTIVE) {
+        return;
+    }
+
+    $booking = $_SESSION['booking_preview'] ?? null;
+    if (!is_array($booking)) {
+        return;
+    }
+
+    $day = preview_day_record((string) $appointment['date']);
+    $booking['date_value'] = $appointment['date'];
+    $booking['date'] = $day['full'] ?? $appointment['date_label'];
+    $booking['time'] = $appointment['time'];
+    $booking['time_value'] = $appointment['time_value'];
+    $booking['status'] = $appointment['status'] === 'cancelled' ? 'canceled' : 'booked';
+    if (isset($booking['people'][0]) && is_array($booking['people'][0])) {
+        $booking['people'][0]['time'] = $appointment['time'];
+        $booking['people'][0]['time_value'] = $appointment['time_value'];
+    }
+    $_SESSION['booking_preview'] = $booking;
+}
+
+function preview_upcoming_appointments(): array
+{
+    $cancelled = preview_session_string_list('upcoming_cancelled');
+    $reminded = preview_session_string_list('upcoming_reminded');
+    $doubles = preview_session_map('upcoming_doubles');
+    $moves = preview_session_map('upcoming_moves');
+    $waiting = [];
+    foreach (preview_waitlist_seed() as $person) {
+        $waiting[$person['id']] = $person;
+    }
+
+    $rows = preview_upcoming_seed();
+    $live = preview_live_booking_row();
+    if ($live !== null) {
+        $rows[] = $live;
+    }
+
+    $appointments = [];
+    foreach ($rows as $row) {
+        $move = $moves[$row['id']] ?? null;
+        if (is_array($move)) {
+            $nextDate = (string) ($move['date'] ?? '');
+            $nextTime = (string) ($move['time'] ?? '');
+            $day = preview_day_record($nextDate);
+            if ($day !== null && preview_time_is_open($nextDate, $nextTime)) {
+                $row['date'] = $nextDate;
+                $row['date_label'] = $day['full'];
+                $row['time_value'] = $nextTime;
+                $row['time'] = preview_slot_label($nextTime);
+                $row['note'] = $row['note'] === '' ? 'Time changed by the desk' : $row['note'];
+            }
+        }
+
+        $heldId = (string) ($doubles[$row['id']] ?? '');
+        $held = $waiting[$heldId] ?? null;
+        if (in_array($row['id'], $cancelled, true)) {
+            if ($held !== null) {
+                $row['patient'] = $held['name'];
+                $row['visit'] = $held['visit'];
+                $row['phone'] = $held['phone'];
+                $row['phone_digits'] = $held['phone_digits'];
+                $row['status'] = in_array($row['id'], $reminded, true) ? 'reminder_sent' : 'no_reply';
+                $row['note'] = 'Filled after a cancellation';
+                $row['held_for'] = '';
+            } else {
+                $row['status'] = 'cancelled';
+                $row['note'] = 'Cancelled by the desk';
+            }
+        } else {
+            if ($row['status'] === 'no_reply' && in_array($row['id'], $reminded, true)) {
+                $row['status'] = 'reminder_sent';
+            }
+            if ($held !== null) {
+                $row['held_for'] = $held['name'];
+                $row['note'] = 'Also holding this time for ' . $held['name'] . ' until this visit is confirmed';
+            }
+        }
+
+        $row['status_label'] = preview_status_label($row['status']);
+        $appointments[] = $row;
+    }
+
+    usort($appointments, static function (array $left, array $right): int {
+        $date = strcmp((string) $left['date'], (string) $right['date']);
+        if ($date !== 0) {
+            return $date;
+        }
+
+        return strcmp((string) $left['time_value'], (string) $right['time_value']);
+    });
+
+    return $appointments;
+}
+
+function preview_upcoming_by_id(string $id): ?array
+{
+    foreach (preview_upcoming_appointments() as $appointment) {
+        if ($appointment['id'] === $id) {
+            return $appointment;
+        }
+    }
+
+    return null;
+}
+
+function preview_upcoming_ids(): array
+{
+    $ids = array_column(preview_upcoming_templates(), 'id');
+    $ids[] = 'live-booking';
+
+    return $ids;
+}
+
+function preview_upcoming_slot_taken(string $date, string $time, string $exceptId = ''): bool
+{
+    foreach (preview_upcoming_appointments() as $appointment) {
+        if ($appointment['id'] === $exceptId || $appointment['status'] === 'cancelled') {
+            continue;
+        }
+        if ($appointment['date'] === $date && $appointment['time_value'] === $time) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+function preview_upcoming_matches(array $appointment, string $query): bool
+{
+    $query = trim($query);
+    if ($query === '') {
+        return true;
+    }
+
+    $digits = preg_replace('/\D+/', '', $query) ?? '';
+    if ($digits !== '' && str_contains((string) $appointment['phone_digits'], $digits)) {
+        return true;
+    }
+
+    $haystack = strtolower($appointment['patient'] . ' ' . $appointment['phone'] . ' ' . $appointment['visit']);
+
+    return str_contains($haystack, strtolower($query));
+}
+
+function preview_upcoming_counts(array $appointments): array
+{
+    $counts = [
+        'upcoming' => 0,
+        'unconfirmed' => 0,
+        'cancelled' => 0,
+        'all' => count($appointments),
+    ];
+    foreach ($appointments as $appointment) {
+        if ($appointment['status'] === 'cancelled') {
+            $counts['cancelled']++;
+        } else {
+            $counts['upcoming']++;
+            if (in_array($appointment['status'], ['no_reply', 'reminder_sent'], true)) {
+                $counts['unconfirmed']++;
+            }
+        }
+    }
+
+    return $counts;
 }
 
 function preview_waitlist(): array
@@ -638,6 +1098,7 @@ function preview_waitlist(): array
     $used = [];
     if (session_status() === PHP_SESSION_ACTIVE) {
         $used = array_values($_SESSION['desk_fills'] ?? []);
+        $used = array_merge($used, array_values($_SESSION['upcoming_doubles'] ?? []));
     }
 
     $people = [];

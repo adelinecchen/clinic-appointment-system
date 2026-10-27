@@ -366,7 +366,84 @@ a.cal-day:hover { background: #f3faf7; }
     background: var(--mint);
     display: inline-block;
 }
-.cal-action { margin: 0.8rem 0; }
+.find-form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin: 0 0 0.85rem;
+}
+.find-form input[type="search"] {
+    flex: 1 1 16rem;
+    border: 1.5px solid #c9ddd6;
+    border-radius: 0.7rem;
+    padding: 0.7rem 0.8rem;
+    font: inherit;
+    background: white;
+}
+.view-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+    margin: 0 0 0.9rem;
+}
+.view-tabs a {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    text-decoration: none;
+    border: 1.5px solid #b7d7cc;
+    background: white;
+    color: var(--teal-deep);
+    border-radius: 999px;
+    padding: 0.35rem 0.7rem;
+    font-size: 0.9rem;
+    font-weight: 700;
+}
+.view-tabs a span {
+    min-width: 1.2rem;
+    text-align: center;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+}
+.view-tabs a[aria-current="page"] {
+    background: var(--mint);
+    border-color: #9ed4c6;
+    color: var(--teal-deep);
+}
+.visit-day {
+    font-size: 1.05rem;
+    padding: 0.75rem 0 0.15rem;
+}
+.fill select {
+    width: 100%;
+    border: 1.5px solid #c9ddd6;
+    border-radius: 0.6rem;
+    padding: 0.45rem 0.55rem;
+    font: inherit;
+    background: white;
+}
+.fill form[data-move-form] label {
+    display: grid;
+    gap: 0.25rem;
+    font-weight: 600;
+}
+.hours-form { display: grid; gap: 0.75rem; margin: 0.85rem 0 0.4rem; }
+.hours-grid {
+    display: grid;
+    gap: 0.65rem;
+    grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr));
+}
+.hours-form label { display: grid; gap: 0.3rem; font-weight: 600; }
+.hours-form input,
+.hours-form select {
+    width: 100%;
+    border: 1.5px solid #c9ddd6;
+    border-radius: 0.7rem;
+    padding: 0.65rem 0.75rem;
+    font: inherit;
+    background: white;
+}
+.hours-preview { font-size: 0.9rem; }
 
 .login-body {
     min-height: 100vh;
@@ -455,6 +532,14 @@ a:focus-visible, button:focus-visible {
 @media (min-width: 800px) {
     .visit-row { grid-template-columns: 5.6rem minmax(0, 1fr) auto; align-items: center; }
     .visit-actions { grid-column: auto; justify-content: flex-end; }
+    .visit-manage {
+        grid-template-columns: 5.6rem minmax(0, 1fr);
+        align-items: start;
+    }
+    .visit-manage .visit-actions {
+        grid-column: 1 / -1;
+        justify-content: flex-start;
+    }
 }
 
 @media (min-width: 960px) {

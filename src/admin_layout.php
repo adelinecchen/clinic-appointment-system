@@ -29,6 +29,7 @@ function admin_page_start(string $title, string $active): void
     $clinic = preview_clinic();
     $badges = [
         'notifications' => count(preview_unconfirmed(preview_appointments())),
+        'patients' => preview_upcoming_counts(preview_upcoming_appointments())['unconfirmed'],
         'waitlist' => count(preview_waitlist()),
     ];
     $staff = staff_current();
