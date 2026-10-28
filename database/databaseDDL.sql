@@ -5,7 +5,7 @@ CREATE TABLE Patient (
     Patient_ID INT AUTO_INCREMENT PRIMARY KEY,
     Name VARCHAR(50) NOT NULL,
     PhoneNumber VARCHAR(15) NOT NULL
-) ENGINE=InnoDB;
+) ENGINE=InnoDB; # specific engine to allow foreign keys
 
 
 -- 2. SCHEDULE
@@ -25,7 +25,7 @@ CREATE TABLE Admin (
     Name VARCHAR(50) NOT NULL,
     PhoneNumber VARCHAR(15) NOT NULL UNIQUE,
     Email VARCHAR(80) NOT NULL UNIQUE,
-    PasswordHash VARCHAR(255) NOT NULL
+    PasswordHash VARCHAR(255) NOT NULL # hashing in PHP before storing
 ) ENGINE=InnoDB;
 
 
@@ -38,7 +38,7 @@ CREATE TABLE Appointment (
     Patient_ID INT NOT NULL,
 
     AppointmentStatus VARCHAR(30) NOT NULL DEFAULT 'Scheduled',
-    ConfirmationStatus VARCHAR(30) NOT NULL DEFAULT 'Pending',
+    ConfirmationStatus VARCHAR(30) NOT NULL DEFAULT 'Not Sent',
     AppointmentType VARCHAR(20) NOT NULL,
 
     NotificationStatus VARCHAR(30) NULL,
