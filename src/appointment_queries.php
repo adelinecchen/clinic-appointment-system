@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 /**
- * Appointment create/read helpers for ordinary patient booking.
+ * Appointment create/read/cancel/reschedule helpers for ordinary patient booking.
  * Administrative double-booking is intentionally not implemented here.
  */
 
@@ -291,6 +291,328 @@ function appointment_create(
         return [
             'ok' => false,
             'error' => 'The appointment could not be saved.',
+            'code' => 'db',
+        ];
+    }
+}
+
+/**
+ * Cancel a scheduled appointment. Frees the slot for ordinary booking.
+ * Completed visits cannot be cancelled. Already-cancelled is a no-op success.
+ *
+ * @return array{ok: true, appointment: array}|array{ok: false, error: string, code: string}
+ */
+function appointment_cancel(int $appointmentId): array
+{
+    if ($appointmentId < 1) {
+        return [
+            'ok' => false,
+            'error' => 'A valid appointment is required.',
+            'code' => 'validation',
+        ];
+    }
+
+    $pdo = db();
+    $startedTransaction = false;
+
+    try {
+        if (!$pdo->inTransaction()) {
+            $pdo->beginTransaction();
+            $startedTransaction = true;
+        }
+
+        $lock = $pdo->prepare(
+            'SELECT Appointment_ID, AppointmentStatus
+             FROM Appointment
+             WHERE Appointment_ID = :appointment_id
+             LIMIT 1
+             FOR UPDATE'
+        );
+        $lock->execute(['appointment_id' => $appointmentId]);
+        $row = $lock->fetch();
+
+        if ($row === false) {
+            if ($startedTransaction) {
+                $pdo->rollBack();
+            }
+
+            return [
+                'ok' => false,
+                'error' => 'That appointment was not found.',
+                'code' => 'not_found',
+            ];
+        }
+
+        $status = (string) $row['AppointmentStatus'];
+        if ($status === 'Completed') {
+            if ($startedTransaction) {
+                $pdo->rollBack();
+            }
+
+            return [
+                'ok' => false,
+                'error' => 'A completed visit cannot be cancelled.',
+                'code' => 'not_cancellable',
+            ];
+        }
+
+        if ($status !== 'Cancelled') {
+            $update = $pdo->prepare(
+                'UPDATE Appointment
+                 SET AppointmentStatus = :cancelled
+                 WHERE Appointment_ID = :appointment_id'
+            );
+            $update->execute([
+                'cancelled' => 'Cancelled',
+                'appointment_id' => $appointmentId,
+            ]);
+        }
+
+        if ($startedTransaction) {
+            $pdo->commit();
+        }
+
+        $appointment = appointment_find_by_id($appointmentId);
+        if ($appointment === null) {
+            return [
+                'ok' => false,
+                'error' => 'The appointment could not be updated.',
+                'code' => 'db',
+            ];
+        }
+
+        return [
+            'ok' => true,
+            'appointment' => $appointment,
+        ];
+    } catch (PDOException) {
+        if ($startedTransaction && $pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+
+        return [
+            'ok' => false,
+            'error' => 'The appointment could not be updated.',
+            'code' => 'db',
+        ];
+    }
+}
+
+/**
+ * Move a scheduled appointment to a different open, unoccupied slot.
+ * Resets confirmation and notification fields so the new time can be confirmed again.
+ *
+ * @return array{ok: true, appointment: array}|array{ok: false, error: string, code: string}
+ */
+function appointment_reschedule(
+    int $appointmentId,
+    string $scheduleDate,
+    string $scheduleTime
+): array {
+    if ($appointmentId < 1) {
+        return [
+            'ok' => false,
+            'error' => 'A valid appointment is required.',
+            'code' => 'validation',
+        ];
+    }
+
+    if (!appointment_date_looks_valid($scheduleDate)) {
+        return [
+            'ok' => false,
+            'error' => 'Choose a valid appointment date.',
+            'code' => 'validation',
+        ];
+    }
+
+    $timeValue = schedule_time_value($scheduleTime);
+    if (!appointment_time_looks_valid($timeValue)) {
+        return [
+            'ok' => false,
+            'error' => 'Choose a valid appointment time.',
+            'code' => 'validation',
+        ];
+    }
+
+    $pdo = db();
+    $startedTransaction = false;
+
+    try {
+        if (!$pdo->inTransaction()) {
+            $pdo->beginTransaction();
+            $startedTransaction = true;
+        }
+
+        $lockAppointment = $pdo->prepare(
+            'SELECT Appointment_ID, ScheduleDate, ScheduleTime, AppointmentStatus
+             FROM Appointment
+             WHERE Appointment_ID = :appointment_id
+             LIMIT 1
+             FOR UPDATE'
+        );
+        $lockAppointment->execute(['appointment_id' => $appointmentId]);
+        $current = $lockAppointment->fetch();
+
+        if ($current === false) {
+            if ($startedTransaction) {
+                $pdo->rollBack();
+            }
+
+            return [
+                'ok' => false,
+                'error' => 'That appointment was not found.',
+                'code' => 'not_found',
+            ];
+        }
+
+        $status = (string) $current['AppointmentStatus'];
+        if ($status === 'Cancelled') {
+            if ($startedTransaction) {
+                $pdo->rollBack();
+            }
+
+            return [
+                'ok' => false,
+                'error' => 'A cancelled visit cannot be rescheduled.',
+                'code' => 'not_reschedulable',
+            ];
+        }
+
+        if ($status === 'Completed') {
+            if ($startedTransaction) {
+                $pdo->rollBack();
+            }
+
+            return [
+                'ok' => false,
+                'error' => 'A completed visit cannot be rescheduled.',
+                'code' => 'not_reschedulable',
+            ];
+        }
+
+        $currentDate = (string) $current['ScheduleDate'];
+        $currentTime = schedule_time_value((string) $current['ScheduleTime']);
+        if ($currentDate === $scheduleDate && $currentTime === $timeValue) {
+            if ($startedTransaction) {
+                $pdo->commit();
+            }
+
+            $appointment = appointment_find_by_id($appointmentId);
+
+            return [
+                'ok' => true,
+                'appointment' => $appointment,
+            ];
+        }
+
+        $slotStatement = $pdo->prepare(
+            'SELECT ScheduleDate, ScheduleTime, Status
+             FROM Schedule
+             WHERE ScheduleDate = :date
+               AND ScheduleTime = :time
+             LIMIT 1
+             FOR UPDATE'
+        );
+        $slotStatement->execute([
+            'date' => $scheduleDate,
+            'time' => $timeValue,
+        ]);
+        $slot = $slotStatement->fetch();
+
+        if ($slot === false) {
+            if ($startedTransaction) {
+                $pdo->rollBack();
+            }
+
+            return [
+                'ok' => false,
+                'error' => 'That time is not on the clinic schedule.',
+                'code' => 'slot_missing',
+            ];
+        }
+
+        if (!clinic_schedule_is_open((string) $slot['Status'])) {
+            if ($startedTransaction) {
+                $pdo->rollBack();
+            }
+
+            return [
+                'ok' => false,
+                'error' => 'That time is closed for booking.',
+                'code' => 'slot_closed',
+            ];
+        }
+
+        $occupiedStatement = $pdo->prepare(
+            'SELECT Appointment_ID
+             FROM Appointment
+             WHERE ScheduleDate = :date
+               AND ScheduleTime = :time
+               AND AppointmentStatus <> :cancelled
+               AND Appointment_ID <> :appointment_id
+             LIMIT 1
+             FOR UPDATE'
+        );
+        $occupiedStatement->execute([
+            'date' => $scheduleDate,
+            'time' => $timeValue,
+            'cancelled' => 'Cancelled',
+            'appointment_id' => $appointmentId,
+        ]);
+
+        if ($occupiedStatement->fetch() !== false) {
+            if ($startedTransaction) {
+                $pdo->rollBack();
+            }
+
+            return [
+                'ok' => false,
+                'error' => 'That time is already booked.',
+                'code' => 'slot_occupied',
+            ];
+        }
+
+        $update = $pdo->prepare(
+            'UPDATE Appointment
+             SET ScheduleDate = :date,
+                 ScheduleTime = :time,
+                 ConfirmationStatus = :confirmation_status,
+                 NotificationStatus = NULL,
+                 NotificationDate = NULL
+             WHERE Appointment_ID = :appointment_id'
+        );
+        $update->execute([
+            'date' => $scheduleDate,
+            'time' => $timeValue,
+            'confirmation_status' => clinic_default_confirmation_status(),
+            'appointment_id' => $appointmentId,
+        ]);
+
+        if ($startedTransaction) {
+            $pdo->commit();
+        }
+
+        $appointment = appointment_find_by_id($appointmentId);
+        if ($appointment === null) {
+            return [
+                'ok' => false,
+                'error' => 'The appointment could not be updated.',
+                'code' => 'db',
+            ];
+        }
+
+        return [
+            'ok' => true,
+            'appointment' => $appointment,
+        ];
+    } catch (PDOException) {
+        if ($startedTransaction && $pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+
+        return [
+            'ok' => false,
+            'error' => 'The appointment could not be updated.',
             'code' => 'db',
         ];
     }
