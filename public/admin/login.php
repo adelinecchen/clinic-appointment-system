@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../../src/bootstrap.php';
 require_once __DIR__ . '/../../src/preview_data.php';
+require_once __DIR__ . '/../../src/csrf.php';
 require_once __DIR__ . '/../../src/admin_layout.php';
+
+csrf_ensure_session();
 
 if (isset($_GET['logout'])) {
     staff_logout();
@@ -20,15 +23,19 @@ if (staff_current() !== null) {
 $error = false;
 $username = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $username = trim((string) ($_POST['username'] ?? ''));
-    $password = (string) ($_POST['password'] ?? '');
-    $account = staff_authenticate($username, $password);
-    if ($account !== null) {
-        staff_login($account);
-        header('Location: index.php');
-        exit;
+    if (!csrf_verify_request()) {
+        $error = true;
+    } else {
+        $username = trim((string) ($_POST['username'] ?? ''));
+        $password = (string) ($_POST['password'] ?? '');
+        $account = staff_authenticate($username, $password);
+        if ($account !== null) {
+            staff_login($account);
+            header('Location: index.php');
+            exit;
+        }
+        $error = true;
     }
-    $error = true;
 }
 
 $clinic = preview_clinic();
@@ -50,8 +57,9 @@ $clinic = preview_clinic();
             <p class="login-error" role="alert">That username or password is not right.</p>
         <?php endif; ?>
         <form method="post" action="login.php">
+            <?php echo csrf_field(); ?>
             <label>
-                Username
+                Email or username
                 <input name="username" type="text" autocomplete="username" required maxlength="80" value="<?php echo h($username); ?>">
             </label>
             <label>
@@ -60,7 +68,7 @@ $clinic = preview_clinic();
             </label>
             <button class="btn btn-solid btn-wide" type="submit">Log in</button>
         </form>
-        <p class="login-hint">Local demo: super admin is <strong>staff</strong> / <strong>clinic-desk</strong>. A regular admin is <strong>desk</strong> / <strong>clinic-desk</strong>.</p>
+        <p class="login-hint">Database admin (seeded if empty): <strong>desk@clinic.local</strong> / <strong>clinic-desk</strong>. Legacy JSON demo: <strong>staff</strong> or <strong>desk</strong> / <strong>clinic-desk</strong> (roles/invites still use JSON until the Admin schema adds Username and Role).</p>
         <a class="side-link login-back" href="../index.php">Patient website</a>
     </main>
 </body>

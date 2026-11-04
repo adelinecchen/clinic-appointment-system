@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../../src/bootstrap.php';
 require_once __DIR__ . '/../../src/preview_data.php';
+require_once __DIR__ . '/../../src/csrf.php';
 require_once __DIR__ . '/../../src/admin_layout.php';
+
+csrf_ensure_session();
 
 if (staff_current() !== null) {
     header('Location: index.php');
@@ -17,15 +20,19 @@ $error = '';
 $username = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $invite !== null) {
-    $username = trim((string) ($_POST['username'] ?? ''));
-    $password = (string) ($_POST['password'] ?? '');
-    $result = staff_accept_invite($token, $username, $password);
-    if ($result['ok']) {
-        staff_login($result['account']);
-        header('Location: index.php');
-        exit;
+    if (!csrf_verify_request()) {
+        $error = 'Your form expired. Please try again.';
+    } else {
+        $username = trim((string) ($_POST['username'] ?? ''));
+        $password = (string) ($_POST['password'] ?? '');
+        $result = staff_accept_invite($token, $username, $password);
+        if ($result['ok']) {
+            staff_login($result['account']);
+            header('Location: index.php');
+            exit;
+        }
+        $error = (string) $result['error'];
     }
-    $error = (string) $result['error'];
 }
 
 $clinic = preview_clinic();
@@ -51,6 +58,7 @@ $clinic = preview_clinic();
                 <p class="login-error" role="alert"><?php echo h($error); ?></p>
             <?php endif; ?>
             <form method="post" action="invite.php">
+                <?php echo csrf_field(); ?>
                 <input type="hidden" name="token" value="<?php echo h($token); ?>">
                 <label>
                     Username

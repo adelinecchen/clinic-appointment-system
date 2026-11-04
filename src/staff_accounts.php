@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/admin_auth.php';
+
 function staff_storage_path(): string
 {
     return dirname(__DIR__) . '/storage/staff.json';
@@ -151,14 +153,32 @@ function staff_super_count(?string $exceptId = null): int
 
 function staff_authenticate(string $username, string $password): ?array
 {
-    $account = staff_find_username($username);
+    $login = trim($username);
+
+    // Prefer Admin table when the login looks like an email.
+    if (str_contains($login, '@')) {
+        $dbAccount = admin_authenticate_email($login, $password);
+        if ($dbAccount !== null) {
+            return $dbAccount;
+        }
+    }
+
+    $account = staff_find_username($login);
     if ($account === null || ($account['status'] ?? '') !== 'active') {
+        // Also allow Admin email login without requiring '@' only path already tried.
+        $dbAccount = admin_authenticate_email($login, $password);
+        if ($dbAccount !== null) {
+            return $dbAccount;
+        }
+
         return null;
     }
 
     if (!password_verify($password, (string) ($account['password_hash'] ?? ''))) {
         return null;
     }
+
+    $account['source'] = 'json';
 
     return $account;
 }
@@ -172,6 +192,31 @@ function staff_current(): ?array
     $id = (string) ($_SESSION['admin_id'] ?? '');
     if ($id === '') {
         return null;
+    }
+
+    if (str_starts_with($id, 'db-')) {
+        $adminId = (int) substr($id, 3);
+        if ($adminId < 1) {
+            return null;
+        }
+        $statement = db()->prepare(
+            'SELECT Admin_ID, Name, Email FROM Admin WHERE Admin_ID = :id LIMIT 1'
+        );
+        $statement->execute(['id' => $adminId]);
+        $row = $statement->fetch();
+        if ($row === false) {
+            return null;
+        }
+
+        return [
+            'id' => 'db-' . $row['Admin_ID'],
+            'name' => (string) $row['Name'],
+            'username' => (string) $row['Email'],
+            'email' => (string) $row['Email'],
+            'role' => (string) ($_SESSION['admin_role'] ?? 'admin'),
+            'status' => 'active',
+            'source' => 'db',
+        ];
     }
 
     $account = staff_find_account($id);

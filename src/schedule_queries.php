@@ -110,11 +110,14 @@ function schedule_slots_for_range(string $startDate, string $endDate): array
  * Open Schedule rows for one date that are free for ordinary patient booking.
  * A slot is omitted when Status is not Open, or when any non-cancelled
  * Appointment already references that date+time.
+ * Pass $exceptAppointmentId when rescheduling so the visit's current slot stays choosable.
  *
  * @return list<array{date: string, time: string, label: string, status: string, available: bool}>
  */
-function schedule_open_slots_for_patient(string $date): array
+function schedule_open_slots_for_patient(string $date, ?int $exceptAppointmentId = null): array
 {
+    $exceptId = ($exceptAppointmentId !== null && $exceptAppointmentId > 0) ? $exceptAppointmentId : 0;
+
     $sql = 'SELECT s.ScheduleDate, s.ScheduleTime, s.Status
             FROM Schedule s
             WHERE s.ScheduleDate = :date
@@ -125,6 +128,7 @@ function schedule_open_slots_for_patient(string $date): array
                   WHERE a.ScheduleDate = s.ScheduleDate
                     AND a.ScheduleTime = s.ScheduleTime
                     AND a.AppointmentStatus <> :cancelled_status
+                    AND a.Appointment_ID <> :except_id
               )
             ORDER BY s.ScheduleTime ASC';
 
@@ -133,6 +137,7 @@ function schedule_open_slots_for_patient(string $date): array
         'date' => $date,
         'open_status' => clinic_default_schedule_status(),
         'cancelled_status' => 'Cancelled',
+        'except_id' => $exceptId,
     ]);
 
     $slots = [];

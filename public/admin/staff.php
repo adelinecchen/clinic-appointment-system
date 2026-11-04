@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../../src/bootstrap.php';
 require_once __DIR__ . '/../../src/preview_data.php';
+require_once __DIR__ . '/../../src/csrf.php';
 require_once __DIR__ . '/../../src/admin_layout.php';
 
 staff_require_super();
+csrf_ensure_session();
 
 $notice = '';
 $error = '';
@@ -14,6 +16,11 @@ $invitePreview = null;
 $editId = (string) ($_GET['edit'] ?? '');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (!csrf_verify_request()) {
+        $error = 'Your form expired. Please try again.';
+        $action = '';
+        $role = 'admin';
+    } else {
     $action = (string) ($_POST['action'] ?? '');
     $role = (string) ($_POST['role'] ?? 'admin');
 
@@ -58,6 +65,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $result = staff_revoke_invite((string) ($_POST['id'] ?? ''));
         $error = $result['ok'] ? '' : (string) $result['error'];
         $notice = $result['ok'] ? 'Invite closed.' : '';
+    }
     }
 }
 
@@ -118,6 +126,7 @@ admin_page_start('Staff', 'staff');
                                 <td>
                                     <a class="btn btn-line" href="staff.php?edit=<?php echo h((string) $account['id']); ?>">Edit</a>
                                     <form method="post" class="inline-form">
+                        <?php echo csrf_field(); ?>
                                         <input type="hidden" name="action" value="delete">
                                         <input type="hidden" name="id" value="<?php echo h((string) $account['id']); ?>">
                                         <button class="btn btn-line" type="submit">Delete</button>
@@ -135,6 +144,7 @@ admin_page_start('Staff', 'staff');
                 <section class="panel">
                     <h2>Edit <?php echo h((string) $editing['name']); ?></h2>
                     <form method="post" class="staff-form">
+                        <?php echo csrf_field(); ?>
                         <input type="hidden" name="action" value="update">
                         <input type="hidden" name="id" value="<?php echo h((string) $editing['id']); ?>">
                         <label>Name <input name="name" required value="<?php echo h((string) $editing['name']); ?>"></label>
@@ -156,6 +166,7 @@ admin_page_start('Staff', 'staff');
                 <h2>Email an invite</h2>
                 <p class="muted">They open the link and create their own username and password.</p>
                 <form method="post" class="staff-form">
+                        <?php echo csrf_field(); ?>
                     <input type="hidden" name="action" value="invite">
                     <label>Name <input name="name" required></label>
                     <label>Email <input name="email" type="email" required></label>
@@ -173,6 +184,7 @@ admin_page_start('Staff', 'staff');
                 <h2>Create an account now</h2>
                 <p class="muted">Use this when you want to hand someone a username and password today.</p>
                 <form method="post" class="staff-form">
+                        <?php echo csrf_field(); ?>
                     <input type="hidden" name="action" value="create">
                     <label>Name <input name="name" required></label>
                     <label>Email <input name="email" type="email" required></label>
@@ -200,6 +212,7 @@ admin_page_start('Staff', 'staff');
                         <p class="muted"><?php echo h((string) $invite['email']); ?> · <?php echo h(staff_role_label((string) $invite['role'])); ?></p>
                     </div>
                     <form method="post">
+                        <?php echo csrf_field(); ?>
                         <input type="hidden" name="action" value="revoke">
                         <input type="hidden" name="id" value="<?php echo h((string) $invite['id']); ?>">
                         <button class="btn btn-line" type="submit">Close invite</button>

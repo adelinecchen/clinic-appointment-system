@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../../src/bootstrap.php';
 require_once __DIR__ . '/../../src/preview_data.php';
+require_once __DIR__ . '/../../src/csrf.php';
+require_once __DIR__ . '/../../src/admin_desk.php';
 require_once __DIR__ . '/../../src/admin_layout.php';
 
-if (session_status() !== PHP_SESSION_ACTIVE) {
-    session_start();
-}
+csrf_ensure_session();
 
 $notice = '';
 $actionError = '';
@@ -28,84 +28,63 @@ function patients_back(string $query, string $view): string
     return 'patients.php?' . http_build_query($params);
 }
 
-function patients_push_id(string $key, string $id): void
-{
-    $already = preview_session_string_list($key);
-    if (!in_array($id, $already, true)) {
-        $already[] = $id;
-        $_SESSION[$key] = $already;
-    }
-}
-
-function patients_remove_id(string $key, string $id): void
-{
-    $_SESSION[$key] = array_values(array_filter(
-        preview_session_string_list($key),
-        static fn (string $item): bool => $item !== $id
-    ));
-}
-
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $action = (string) ($_POST['action'] ?? '');
-    $id = (string) ($_POST['id'] ?? '');
-    $query = trim((string) ($_POST['q'] ?? $query));
-    $view = (string) ($_POST['view'] ?? $view);
-    $known = preview_upcoming_ids();
-    $appointment = in_array($id, $known, true) ? preview_upcoming_by_id($id) : null;
+    if (!csrf_verify_request()) {
+        $actionError = 'Your form expired. Please try again.';
+    } else {
+        $action = (string) ($_POST['action'] ?? '');
+        $id = (int) ($_POST['id'] ?? 0);
+        $query = trim((string) ($_POST['q'] ?? $query));
+        $view = (string) ($_POST['view'] ?? $view);
+        $appointment = appointment_find_by_id($id);
 
-    if ($action !== '' && $appointment === null) {
-        $actionError = 'That visit is not on the upcoming list.';
-    } elseif ($appointment !== null && $action === 'cancel' && $appointment['status'] !== 'cancelled') {
-        patients_push_id('upcoming_cancelled', $id);
-        preview_sync_live_booking(array_merge($appointment, ['status' => 'cancelled']));
-        $notice = 'Cancelled ' . $appointment['patient'] . '’s visit at ' . $appointment['time'] . '.';
-    } elseif ($appointment !== null && $action === 'restore' && $appointment['status'] === 'cancelled') {
-        patients_remove_id('upcoming_cancelled', $id);
-        preview_sync_live_booking(array_merge($appointment, ['status' => 'no_reply']));
-        $notice = 'Put ' . $appointment['patient'] . '’s visit back on the schedule.';
-    } elseif ($appointment !== null && $action === 'remind' && in_array($appointment['status'], ['no_reply', 'reminder_sent'], true)) {
-        patients_push_id('upcoming_reminded', $id);
-        $notice = 'Marked a reminder sent to ' . $appointment['patient'] . '.';
-    } elseif ($appointment !== null && $action === 'double' && in_array($appointment['status'], ['no_reply', 'reminder_sent'], true)) {
-        $person = (string) ($_POST['waitlist_id'] ?? '');
-        $waiting = array_column(preview_waitlist(), 'id');
-        if (in_array($person, $waiting, true)) {
-            $doubles = preview_session_map('upcoming_doubles');
-            $doubles[$id] = $person;
-            $_SESSION['upcoming_doubles'] = $doubles;
-            $notice = 'This unconfirmed time is also held for a waitlist patient.';
-        } else {
-            $actionError = 'Choose someone from the waitlist.';
-        }
-    } elseif ($appointment !== null && $action === 'move' && $appointment['status'] !== 'cancelled') {
-        $date = (string) ($_POST['date'] ?? '');
-        $time = (string) ($_POST['time'] ?? '');
-        if (!preview_date_is_choosable($date) || preview_day_hours($date) === null || !preview_time_is_open($date, $time)) {
-            $actionError = 'Choose an open day and time.';
-        } elseif (preview_upcoming_slot_taken($date, $time, $id)) {
-            $actionError = 'That time already has a visit. Pick another block.';
-        } else {
-            $moves = preview_session_map('upcoming_moves');
-            $moves[$id] = ['date' => $date, 'time' => $time];
-            $_SESSION['upcoming_moves'] = $moves;
-            $moved = array_merge($appointment, [
-                'date' => $date,
-                'date_label' => preview_day_record($date)['full'] ?? $date,
-                'time' => preview_slot_label($time),
-                'time_value' => $time,
-            ]);
-            preview_sync_live_booking($moved);
-            $notice = 'Moved ' . $appointment['patient'] . ' to ' . preview_slot_label($time) . ' on ' . ($moved['date_label']);
+        if ($action !== '' && $appointment === null) {
+            $actionError = 'That visit is not on the upcoming list.';
+        } elseif ($appointment !== null && $action === 'cancel' && $appointment['AppointmentStatus'] !== 'Cancelled') {
+            $result = appointment_cancel($id);
+            if ($result['ok']) {
+                $notice = 'Cancelled the visit at ' . $appointment['ScheduleTimeLabel'] . '.';
+                $view = 'cancelled';
+            } else {
+                $actionError = (string) $result['error'];
+            }
+        } elseif ($appointment !== null && $action === 'restore' && $appointment['AppointmentStatus'] === 'Cancelled') {
+            $result = admin_restore_appointment($id);
+            if ($result['ok']) {
+                $notice = 'Put the visit back on the schedule.';
+                $view = 'upcoming';
+            } else {
+                $actionError = (string) $result['error'];
+            }
+        } elseif ($appointment !== null && $action === 'remind') {
+            $result = admin_mark_reminder_sent($id);
+            if ($result['ok']) {
+                $notice = 'Marked a reminder as sent (no SMS was sent).';
+            } else {
+                $actionError = (string) $result['error'];
+            }
+        } elseif ($appointment !== null && $action === 'double') {
+            $person = (int) ($_POST['waitlist_id'] ?? 0);
+            $result = admin_double_book_from_waitlist($id, $person);
+            if ($result['ok']) {
+                $notice = 'This unconfirmed time is also held for a waitlist patient.';
+            } else {
+                $actionError = (string) $result['error'];
+            }
+        } elseif ($appointment !== null && $action === 'move' && $appointment['AppointmentStatus'] !== 'Cancelled') {
+            $date = (string) ($_POST['date'] ?? '');
+            $time = (string) ($_POST['time'] ?? '');
+            $result = appointment_reschedule($id, $date, $time);
+            if ($result['ok']) {
+                $notice = 'Moved the visit to ' . $result['appointment']['ScheduleTimeLabel'] . ' on ' . $result['appointment']['ScheduleDate'] . '.';
+            } else {
+                $actionError = (string) $result['error'];
+            }
         }
     }
 
     if ($notice !== '' && $actionError === '') {
         $_SESSION['patients_notice'] = $notice;
-        if ($action === 'cancel') {
-            $view = 'cancelled';
-        } elseif ($action === 'restore') {
-            $view = 'upcoming';
-        }
         header('Location: ' . patients_back($query, $view));
         exit;
     }
@@ -116,21 +95,21 @@ if ($notice === '' && isset($_SESSION['patients_notice']) && is_string($_SESSION
     unset($_SESSION['patients_notice']);
 }
 
-$all = preview_upcoming_appointments();
-$counts = preview_upcoming_counts($all);
-$waiting = preview_waitlist();
-$openDays = preview_open_dates();
+$all = admin_upcoming_appointments();
+$counts = admin_upcoming_counts($all);
+$waiting = waitlist_desk_entries();
+$openDays = admin_schedule_open_dates();
 $slotMap = [];
 foreach ($openDays as $day) {
     $slotMap[$day['value']] = array_map(
         static fn (array $slot): array => ['value' => $slot['value'], 'label' => $slot['label']],
-        preview_open_slots($day['value'])
+        patient_booking_open_slots($day['value'])
     );
 }
 
 $matched = array_values(array_filter(
     $all,
-    static fn (array $appointment): bool => preview_upcoming_matches($appointment, $query)
+    static fn (array $appointment): bool => admin_upcoming_matches($appointment, $query)
 ));
 $shown = array_values(array_filter($matched, static function (array $appointment) use ($view): bool {
     if ($view === 'unconfirmed') {
@@ -164,7 +143,7 @@ admin_page_start('Patients', 'patients');
         <div>
             <h1>Upcoming visits</h1>
         </div>
-        <p class="head-note">When someone calls the desk, find the visit by name or phone. You can cancel it, change the time, send a reminder, or hold an unconfirmed block for a waitlist patient.</p>
+        <p class="head-note">When someone calls the desk, find the visit by name or phone. You can cancel it, change the time, mark a reminder, or intentionally hold an unconfirmed block for a waitlist patient.</p>
     </header>
     <?php if ($notice !== ''): ?>
         <p class="desk-note"><?php echo h($notice); ?></p>
@@ -189,7 +168,7 @@ admin_page_start('Patients', 'patients');
         <?php endforeach; ?>
     </nav>
 
-    <?php if ($openDays === []): ?>
+    <?php if ($openDays === [] && $shown === []): ?>
         <section class="panel">
             <p class="muted">There are no open days yet. Open a day on Availability first.</p>
         </section>
@@ -222,6 +201,7 @@ admin_page_start('Patients', 'patients');
                             <?php admin_status($appointment['status'], $appointment['status_label']); ?>
                             <?php if ($appointment['status'] === 'cancelled'): ?>
                                 <form method="post">
+                                    <?php echo csrf_field(); ?>
                                     <input type="hidden" name="action" value="restore">
                                     <input type="hidden" name="id" value="<?php echo h($appointment['id']); ?>">
                                     <input type="hidden" name="q" value="<?php echo h($query); ?>">
@@ -231,24 +211,26 @@ admin_page_start('Patients', 'patients');
                             <?php else: ?>
                                 <?php if ($appointment['status'] === 'no_reply'): ?>
                                     <form method="post">
+                                        <?php echo csrf_field(); ?>
                                         <input type="hidden" name="action" value="remind">
                                         <input type="hidden" name="id" value="<?php echo h($appointment['id']); ?>">
                                         <input type="hidden" name="q" value="<?php echo h($query); ?>">
                                         <input type="hidden" name="view" value="<?php echo h($view); ?>">
-                                        <button class="btn btn-solid" type="submit">Send reminder</button>
+                                        <button class="btn btn-solid" type="submit">Mark reminder sent</button>
                                     </form>
                                 <?php elseif ($appointment['status'] === 'reminder_sent'): ?>
                                     <a class="btn btn-line" href="tel:<?php echo h($appointment['phone_digits']); ?>">Call patient</a>
                                 <?php endif; ?>
-                                <?php if (in_array($appointment['status'], ['no_reply', 'reminder_sent'], true) && $waiting !== [] && $appointment['held_for'] === ''): ?>
+                                <?php if (in_array($appointment['status'], ['no_reply', 'reminder_sent'], true) && $waiting !== []): ?>
                                     <details class="fill">
                                         <summary>Hold for waitlist</summary>
                                         <form method="post">
+                                            <?php echo csrf_field(); ?>
                                             <input type="hidden" name="action" value="double">
                                             <input type="hidden" name="id" value="<?php echo h($appointment['id']); ?>">
                                             <input type="hidden" name="q" value="<?php echo h($query); ?>">
                                             <input type="hidden" name="view" value="<?php echo h($view); ?>">
-                                            <p>Keep this unconfirmed visit, and also hold the time for someone waiting.</p>
+                                            <p>Keep this unconfirmed visit, and also book the same time for someone waiting (intentional double-book).</p>
                                             <?php foreach ($waiting as $person): ?>
                                                 <label>
                                                     <input type="radio" name="waitlist_id" value="<?php echo h($person['id']); ?>" required>
@@ -266,6 +248,7 @@ admin_page_start('Patients', 'patients');
                                     <details class="fill">
                                         <summary>Change time</summary>
                                         <form method="post" data-move-form>
+                                            <?php echo csrf_field(); ?>
                                             <input type="hidden" name="action" value="move">
                                             <input type="hidden" name="id" value="<?php echo h($appointment['id']); ?>">
                                             <input type="hidden" name="q" value="<?php echo h($query); ?>">
@@ -283,7 +266,13 @@ admin_page_start('Patients', 'patients');
                                             <label>
                                                 Time
                                                 <select name="time" data-current="<?php echo h($appointment['time_value']); ?>">
-                                                    <?php foreach ($slotMap[$appointment['date']] ?? [['value' => $appointment['time_value'], 'label' => $appointment['time']]] as $slot): ?>
+                                                    <?php
+                                                    $moveSlots = patient_booking_open_slots($appointment['date'], (int) $appointment['id']);
+                                                    if ($moveSlots === []) {
+                                                        $moveSlots = [['value' => $appointment['time_value'], 'label' => $appointment['time']]];
+                                                    }
+                                                    foreach ($moveSlots as $slot):
+                                                    ?>
                                                         <option value="<?php echo h($slot['value']); ?>"<?php echo $slot['value'] === $appointment['time_value'] ? ' selected' : ''; ?>>
                                                             <?php echo h($slot['label']); ?>
                                                         </option>
@@ -295,6 +284,7 @@ admin_page_start('Patients', 'patients');
                                     </details>
                                 <?php endif; ?>
                                 <form method="post">
+                                    <?php echo csrf_field(); ?>
                                     <input type="hidden" name="action" value="cancel">
                                     <input type="hidden" name="id" value="<?php echo h($appointment['id']); ?>">
                                     <input type="hidden" name="q" value="<?php echo h($query); ?>">

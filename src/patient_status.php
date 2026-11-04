@@ -2,136 +2,164 @@
 
 declare(strict_types=1);
 
-function patient_status_sample(array $day): array
-{
-    return [
-        'visit_type' => 'wellness',
-        'visit_label' => preview_visit_label('wellness'),
-        'date' => $day['full'],
-        'date_value' => $day['value'],
-        'time' => '9:00 AM',
-        'time_value' => '09:00',
-        'patient_name' => 'Sarah Smith',
-        'patient_phone' => '(757) 555-1234',
-        'people' => [
-            ['name' => 'Sarah Smith', 'time' => '9:00 AM', 'time_value' => '09:00'],
-            ['name' => 'Mark Smith', 'time' => '9:15 AM', 'time_value' => '09:15'],
-        ],
-        'status' => 'booked',
-    ];
-}
+require_once __DIR__ . '/patient_booking.php';
+require_once __DIR__ . '/csrf.php';
 
 function patient_status_process(): void
 {
-    if (session_status() !== PHP_SESSION_ACTIVE) {
-        session_start();
-    }
-
-    $booking = $_SESSION['booking_preview'] ?? null;
-    if (!is_array($booking)) {
-        $booking = null;
-    }
+    csrf_ensure_session();
 
     $lookup = '';
-    $found = null;
+    $appointments = [];
     $missing = false;
-    $showPicker = false;
+    $changeId = null;
+    $message = '';
+    $error = '';
     $action = (string) ($_POST['action'] ?? '');
+
+    if (!csrf_verify_request()) {
+        $_SESSION['status_view'] = [
+            'lookup' => trim((string) ($_POST['lookup_phone'] ?? '')),
+            'appointments' => [],
+            'missing' => false,
+            'change_id' => null,
+            'message' => '',
+            'error' => 'Your form expired. Please try again.',
+        ];
+
+        return;
+    }
 
     if ($action === 'find') {
         $lookup = trim((string) ($_POST['lookup_phone'] ?? ''));
-        $digits = preg_replace('/\D+/', '', $lookup) ?? '';
-        $bookedDigits = preg_replace('/\D+/', '', (string) ($booking['patient_phone'] ?? '')) ?? '';
-        if ($booking !== null && $digits !== '' && $digits === $bookedDigits) {
-            $found = $booking;
-        } elseif ($digits === '7575551234') {
-            $openDays = preview_open_dates();
-            $day = $openDays[0] ?? ['full' => 'October 25, 2026', 'value' => '2026-10-25'];
-            $found = patient_status_sample($day);
-            $_SESSION['booking_preview'] = $found;
+        $digits = patient_phone_digits($lookup);
+        if ($digits === '') {
+            $missing = false;
         } else {
-            $missing = $digits !== '';
+            $all = patient_booking_lookup_by_phone($lookup);
+            $appointments = patient_booking_active_upcoming($all);
+            $missing = $appointments === [];
         }
-    } elseif ($action === 'cancel' && $booking !== null) {
-        $booking['status'] = 'canceled';
-        $_SESSION['booking_preview'] = $booking;
-        $found = $booking;
-        $lookup = (string) $booking['patient_phone'];
-    } elseif ($action === 'reschedule' && $booking !== null) {
-        $checked = preview_validate_booking([
-            'visit_type' => $booking['visit_type'] ?? 'wellness',
-            'appointment_date' => $_POST['appointment_date'] ?? '',
-            'appointment_time' => $_POST['appointment_time'] ?? '',
-            'patient_name' => $booking['patient_name'] ?? '',
-            'patient_phone' => $booking['patient_phone'] ?? '',
-        ]);
-        if ($checked['errors'] === []) {
-            $_SESSION['booking_preview'] = $checked['booking'];
+    } elseif ($action === 'cancel') {
+        $appointmentId = (int) ($_POST['appointment_id'] ?? 0);
+        $lookup = trim((string) ($_POST['lookup_phone'] ?? ''));
+        $result = appointment_cancel($appointmentId);
+        if ($result['ok']) {
+            $message = patient_text('canceled');
+            $appointment = appointment_find_by_id($appointmentId);
+            $patient = $appointment !== null ? patient_find_by_id((int) $appointment['Patient_ID']) : null;
+            if ($appointment !== null && $patient !== null) {
+                $appointments = [patient_booking_view_model($appointment, $patient['Name'], $patient['PhoneNumber'])];
+                if ($lookup === '') {
+                    $lookup = $patient['PhoneNumber'];
+                }
+            }
+        } else {
+            $error = (string) ($result['error'] ?? 'That visit could not be cancelled.');
+            if ($lookup !== '') {
+                $appointments = patient_booking_active_upcoming(patient_booking_lookup_by_phone($lookup));
+            }
+        }
+    } elseif ($action === 'reschedule') {
+        $appointmentId = (int) ($_POST['appointment_id'] ?? 0);
+        $lookup = trim((string) ($_POST['lookup_phone'] ?? ''));
+        $date = trim((string) ($_POST['appointment_date'] ?? ''));
+        $time = (string) ($_POST['appointment_time'] ?? '');
+        $result = appointment_reschedule($appointmentId, $date, $time);
+        if ($result['ok']) {
+            $appointment = $result['appointment'];
+            $patient = patient_find_by_id((int) $appointment['Patient_ID']);
+            $booking = patient_booking_view_model(
+                $appointment,
+                $patient['Name'] ?? '',
+                $patient['PhoneNumber'] ?? $lookup
+            );
+            patient_booking_store_confirmation($booking);
             $_SESSION['status_view'] = [
-                'lookup' => (string) $checked['booking']['patient_phone'],
-                'found' => $checked['booking'],
+                'lookup' => $lookup !== '' ? $lookup : (string) ($booking['patient_phone'] ?? ''),
+                'appointments' => [$booking],
                 'missing' => false,
-                'change' => false,
+                'change_id' => null,
+                'message' => '',
+                'error' => '',
             ];
             header('Location: confirmation.php');
             exit;
         }
-        $found = $booking;
-        $lookup = (string) $booking['patient_phone'];
-        $showPicker = true;
+
+        $error = (string) ($result['error'] ?? 'That visit could not be moved.');
+        $changeId = $appointmentId;
+        if ($lookup !== '') {
+            $appointments = patient_booking_active_upcoming(patient_booking_lookup_by_phone($lookup));
+        }
     }
 
     $_SESSION['status_view'] = [
         'lookup' => $lookup,
-        'found' => $found,
+        'appointments' => $appointments,
         'missing' => $missing,
-        'change' => $showPicker,
+        'change_id' => $changeId,
+        'message' => $message,
+        'error' => $error,
     ];
 }
 
 function patient_status_view(): array
 {
-    if (session_status() !== PHP_SESSION_ACTIVE) {
-        session_start();
-    }
+    csrf_ensure_session();
 
     $view = $_SESSION['status_view'] ?? null;
     if (is_array($view)) {
-        if (isset($_GET['change'])) {
-            $view['change'] = true;
+        $changeId = isset($_GET['change']) ? (int) ($_GET['appointment_id'] ?? ($view['change_id'] ?? 0)) : (int) ($view['change_id'] ?? 0);
+        if (isset($_GET['change']) && $changeId > 0) {
+            $view['change_id'] = $changeId;
         }
-        if (is_array($view['found'] ?? null)) {
-            $view['found']['visit_label'] = preview_visit_label((string) ($view['found']['visit_type'] ?? 'wellness'));
-        }
-
-        return $view;
-    }
-
-    $booking = $_SESSION['booking_preview'] ?? null;
-    if (is_array($booking)) {
-        $booking['visit_label'] = preview_visit_label((string) ($booking['visit_type'] ?? 'wellness'));
 
         return [
-            'lookup' => (string) ($booking['patient_phone'] ?? ''),
-            'found' => $booking,
+            'lookup' => (string) ($view['lookup'] ?? ''),
+            'appointments' => is_array($view['appointments'] ?? null) ? $view['appointments'] : [],
+            'missing' => !empty($view['missing']),
+            'change_id' => (int) ($view['change_id'] ?? 0) ?: null,
+            'message' => (string) ($view['message'] ?? ''),
+            'error' => (string) ($view['error'] ?? ''),
+        ];
+    }
+
+    $confirmation = patient_booking_load_confirmation();
+    if ($confirmation !== null && ($confirmation['status'] ?? '') !== 'canceled') {
+        return [
+            'lookup' => (string) ($confirmation['patient_phone'] ?? ''),
+            'appointments' => [$confirmation],
             'missing' => false,
-            'change' => isset($_GET['change']),
+            'change_id' => isset($_GET['change']) ? (int) ($confirmation['appointment_id'] ?? 0) : null,
+            'message' => '',
+            'error' => '',
         ];
     }
 
     return [
         'lookup' => '',
-        'found' => null,
+        'appointments' => [],
         'missing' => false,
-        'change' => false,
+        'change_id' => null,
+        'message' => '',
+        'error' => '',
     ];
 }
 
 function patient_status_render(): void
 {
     $view = patient_status_view();
-    $found = is_array($view['found'] ?? null) ? $view['found'] : null;
+    $appointments = $view['appointments'];
     $lookup = (string) ($view['lookup'] ?? '');
+    $changeId = $view['change_id'];
+    $changing = null;
+    foreach ($appointments as $appointment) {
+        if ($changeId !== null && (int) ($appointment['appointment_id'] ?? 0) === $changeId) {
+            $changing = $appointment;
+            break;
+        }
+    }
     ?>
     <section class="status-block" id="status">
         <div class="wrap status-inner">
@@ -141,6 +169,7 @@ function patient_status_render(): void
             </div>
             <div class="status-tools">
                 <form class="lookup" method="post" action="index.php#status">
+                    <?php echo csrf_field(); ?>
                     <input type="hidden" name="action" value="find">
                     <label>
                         <span class="sr-only"><?php echo h(patient_text('phone')); ?></span>
@@ -149,51 +178,75 @@ function patient_status_render(): void
                     <button class="book-submit" type="submit"><?php echo h(patient_text('find')); ?></button>
                 </form>
 
+                <?php if ($view['error'] !== ''): ?>
+                    <p class="missing" role="alert"><?php echo h($view['error']); ?></p>
+                <?php endif; ?>
+                <?php if ($view['message'] !== ''): ?>
+                    <p class="coming"><?php echo h($view['message']); ?></p>
+                <?php endif; ?>
+
                 <?php if (!empty($view['missing'])): ?>
                     <p class="missing"><?php echo h(patient_text('missing')); ?></p>
                 <?php endif; ?>
 
-                <?php if ($found !== null && ($found['status'] ?? '') === 'canceled'): ?>
-                    <div class="visit-summary">
-                        <h3><?php echo h(patient_text('canceled')); ?></h3>
-                        <p><?php echo h(patient_text('canceled_note')); ?></p>
-                    </div>
-                <?php elseif ($found !== null): ?>
-                    <div class="visit-summary">
-                        <p class="coming"><?php echo h(patient_text('coming')); ?></p>
-                        <h3><?php echo h((string) $found['date']); ?></h3>
-                        <p><?php echo h((string) $found['visit_label']); ?></p>
-                        <ul class="people">
-                            <?php foreach ($found['people'] ?? [] as $person): ?>
-                                <li><?php echo h((string) $person['time']); ?> · <?php echo h((string) $person['name']); ?></li>
-                            <?php endforeach; ?>
-                        </ul>
-                        <form method="post" action="index.php#status">
-                            <input type="hidden" name="action" value="cancel">
-                            <button class="text-button" type="submit"><?php echo h(patient_text('cancel')); ?></button>
-                        </form>
-                        <p><a href="index.php?change=1#status"><?php echo h(patient_text('reschedule')); ?></a></p>
-                    </div>
-                    <?php if (!empty($view['change'])): ?>
-                        <form class="picker" method="post" action="index.php#status">
-                            <input type="hidden" name="action" value="reschedule">
-                            <fieldset>
-                                <legend><?php echo h(patient_text('reschedule')); ?></legend>
-                                <p class="picker-label"><?php echo h(patient_text('choose_date')); ?></p>
-                                <?php patient_render_calendar((string) ($found['date_value'] ?? ''), 'appointment_date'); ?>
-                                <p class="picker-label"><?php echo h(patient_text('choose_time')); ?></p>
-                                <?php
-                                $pickerDays = array_column(preview_open_dates(), 'value');
-                                $pickerDate = (string) ($found['date_value'] ?? '');
-                                if (!in_array($pickerDate, $pickerDays, true)) {
-                                    $pickerDate = $pickerDays[0] ?? '';
-                                }
-                                patient_render_times($pickerDate, (string) ($found['time_value'] ?? ''));
-                                ?>
-                            </fieldset>
-                            <button class="book-submit" type="submit"><?php echo h(patient_text('save_change')); ?></button>
-                        </form>
+                <?php foreach ($appointments as $found): ?>
+                    <?php if (($found['status'] ?? '') === 'canceled'): ?>
+                        <div class="visit-summary">
+                            <h3><?php echo h(patient_text('canceled')); ?></h3>
+                            <p><?php echo h((string) ($found['patient_name'] ?? '')); ?> · <?php echo h((string) ($found['date'] ?? '')); ?></p>
+                            <p><?php echo h(patient_text('canceled_note')); ?></p>
+                        </div>
+                    <?php else: ?>
+                        <div class="visit-summary">
+                            <p class="coming"><?php echo h(patient_text('coming')); ?></p>
+                            <h3><?php echo h((string) $found['date']); ?></h3>
+                            <p><?php echo h((string) $found['visit_label']); ?> · <?php echo h((string) $found['patient_name']); ?></p>
+                            <ul class="people">
+                                <?php foreach ($found['people'] ?? [] as $person): ?>
+                                    <li><?php echo h((string) $person['time']); ?> · <?php echo h((string) $person['name']); ?></li>
+                                <?php endforeach; ?>
+                            </ul>
+                            <form method="post" action="index.php#status">
+                                <?php echo csrf_field(); ?>
+                                <input type="hidden" name="action" value="cancel">
+                                <input type="hidden" name="appointment_id" value="<?php echo h((string) ($found['appointment_id'] ?? '')); ?>">
+                                <input type="hidden" name="lookup_phone" value="<?php echo h($lookup !== '' ? $lookup : (string) ($found['patient_phone'] ?? '')); ?>">
+                                <button class="text-button" type="submit"><?php echo h(patient_text('cancel')); ?></button>
+                            </form>
+                            <p>
+                                <a href="index.php?change=1&amp;appointment_id=<?php echo h((string) ($found['appointment_id'] ?? '')); ?>#status">
+                                    <?php echo h(patient_text('reschedule')); ?>
+                                </a>
+                            </p>
+                        </div>
                     <?php endif; ?>
+                <?php endforeach; ?>
+
+                <?php if ($changing !== null && ($changing['status'] ?? '') !== 'canceled'): ?>
+                    <form class="picker" method="post" action="index.php#status">
+                        <?php echo csrf_field(); ?>
+                        <input type="hidden" name="action" value="reschedule">
+                        <input type="hidden" name="appointment_id" value="<?php echo h((string) ($changing['appointment_id'] ?? '')); ?>">
+                        <input type="hidden" name="lookup_phone" value="<?php echo h($lookup !== '' ? $lookup : (string) ($changing['patient_phone'] ?? '')); ?>">
+                        <fieldset>
+                            <legend><?php echo h(patient_text('reschedule')); ?></legend>
+                            <p class="picker-label"><?php echo h(patient_text('choose_date')); ?></p>
+                            <?php
+                            $exceptId = (int) ($changing['appointment_id'] ?? 0);
+                            patient_render_calendar((string) ($changing['date_value'] ?? ''), 'appointment_date', $exceptId);
+                            ?>
+                            <p class="picker-label"><?php echo h(patient_text('choose_time')); ?></p>
+                            <?php
+                            $pickerDays = array_column(patient_booking_open_dates($exceptId), 'value');
+                            $pickerDate = (string) ($changing['date_value'] ?? '');
+                            if (!in_array($pickerDate, $pickerDays, true)) {
+                                $pickerDate = $pickerDays[0] ?? '';
+                            }
+                            patient_render_times($pickerDate, (string) ($changing['time_value'] ?? ''), $exceptId);
+                            ?>
+                        </fieldset>
+                        <button class="book-submit" type="submit"><?php echo h(patient_text('save_change')); ?></button>
+                    </form>
                 <?php endif; ?>
             </div>
         </div>

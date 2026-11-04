@@ -4,54 +4,84 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../../src/bootstrap.php';
 require_once __DIR__ . '/../../src/preview_data.php';
+require_once __DIR__ . '/../../src/csrf.php';
+require_once __DIR__ . '/../../src/admin_desk.php';
 require_once __DIR__ . '/../../src/admin_layout.php';
 
-if (session_status() !== PHP_SESSION_ACTIVE) {
-    session_start();
-}
+csrf_ensure_session();
+
+$deskDate = admin_desk_today()->format('Y-m-d');
+$notice = '';
+$actionError = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $action = (string) ($_POST['action'] ?? '');
-    $knownSlots = array_column(preview_appointment_seed(), 'id');
-    $knownWaiting = array_column(preview_waitlist_seed(), 'id');
+    if (!csrf_verify_request()) {
+        $actionError = 'Your form expired. Please try again.';
+    } else {
+        $action = (string) ($_POST['action'] ?? '');
 
-    if ($action === 'remind') {
-        $chosen = $_POST['patient_id'] ?? [];
-        if (!is_array($chosen)) {
-            $chosen = [];
+        if ($action === 'remind') {
+            $chosen = $_POST['patient_id'] ?? [];
+            if (!is_array($chosen)) {
+                $chosen = [];
+            }
+            $result = admin_mark_reminders_sent($chosen);
+            $notice = count($result['marked']) === 1
+                ? 'Marked a reminder as sent (no SMS was sent).'
+                : 'Marked ' . count($result['marked']) . ' reminders as sent (no SMS was sent).';
         }
-        $already = $_SESSION['desk_reminded'] ?? [];
-        foreach ($chosen as $id) {
-            $id = (string) $id;
-            if (in_array($id, $knownSlots, true) && !in_array($id, $already, true)) {
-                $already[] = $id;
+
+        if ($action === 'fill') {
+            $slot = (int) ($_POST['slot_id'] ?? 0);
+            $person = (int) ($_POST['waitlist_id'] ?? 0);
+            $result = admin_fill_cancelled_from_waitlist($slot, $person);
+            if ($result['ok']) {
+                $notice = 'Filled that time from the waitlist.';
+            } else {
+                $actionError = (string) ($result['error'] ?? 'Could not fill that time.');
             }
         }
-        $_SESSION['desk_reminded'] = $already;
     }
 
-    if ($action === 'fill') {
-        $slot = (string) ($_POST['slot_id'] ?? '');
-        $person = (string) ($_POST['waitlist_id'] ?? '');
-        $used = array_values($_SESSION['desk_fills'] ?? []);
-        if (
-            in_array($slot, $knownSlots, true)
-            && in_array($person, $knownWaiting, true)
-            && !in_array($person, $used, true)
-            && !isset($_SESSION['desk_fills'][$slot])
-        ) {
-            $_SESSION['desk_fills'][$slot] = $person;
-        }
+    if ($actionError === '') {
+        $_SESSION['desk_notice'] = $notice;
+        header('Location: index.php');
+        exit;
     }
-
-    header('Location: index.php');
-    exit;
 }
 
-$appointments = preview_appointments();
-$counts = preview_appointment_counts($appointments);
-$unconfirmed = preview_unconfirmed($appointments);
-$waiting = preview_waitlist();
+if ($notice === '' && isset($_SESSION['desk_notice']) && is_string($_SESSION['desk_notice'])) {
+    $notice = $_SESSION['desk_notice'];
+    unset($_SESSION['desk_notice']);
+}
+
+$appointments = admin_desk_appointments_for_date($deskDate);
+$counts = admin_appointment_counts(array_map(static function (array $row): array {
+    return [
+        'DeskStatus' => $row['status'],
+    ];
+}, $appointments));
+// Recompute properly from desk rows
+$counts = [
+    'booked' => count($appointments),
+    'confirmed' => 0,
+    'not_confirmed' => 0,
+    'cancelled' => 0,
+];
+foreach ($appointments as $appointment) {
+    if ($appointment['status'] === 'confirmed') {
+        $counts['confirmed']++;
+    } elseif ($appointment['status'] === 'cancelled') {
+        $counts['cancelled']++;
+    } else {
+        $counts['not_confirmed']++;
+    }
+}
+$unconfirmed = array_values(array_filter(
+    $appointments,
+    static fn (array $a): bool => in_array($a['status'], ['no_reply', 'reminder_sent'], true)
+));
+$waiting = waitlist_desk_entries();
 $cards = [
     ['booked', 'Booked', $counts['booked']],
     ['confirmed', 'Confirmed', $counts['confirmed']],
@@ -62,16 +92,22 @@ $messages = [];
 foreach ($unconfirmed as $appointment) {
     $messages[] = [
         'id' => $appointment['id'],
-        'text' => preview_reminder_text($appointment),
+        'text' => admin_reminder_preview_text($appointment),
     ];
 }
 
 admin_page_start('Appointments', 'dashboard');
 ?>
     <header class="day-head">
-        <h1><?php echo h(preview_desk_date()->format('l, F j')); ?></h1>
+        <h1><?php echo h(admin_desk_today()->format('l, F j')); ?></h1>
         <a class="btn btn-solid" href="../index.php">+ Add appointment</a>
     </header>
+    <?php if ($notice !== ''): ?>
+        <p class="desk-note"><?php echo h($notice); ?></p>
+    <?php endif; ?>
+    <?php if ($actionError !== ''): ?>
+        <p class="login-error" role="alert"><?php echo h($actionError); ?></p>
+    <?php endif; ?>
 
     <section class="cards" aria-label="Appointment summary">
         <?php foreach ($cards as $card): ?>
@@ -84,6 +120,9 @@ admin_page_start('Appointments', 'dashboard');
 
     <div class="day-layout">
         <section class="panel schedule" aria-label="Appointments">
+            <?php if ($appointments === []): ?>
+                <p class="muted">No appointments on the schedule for today.</p>
+            <?php endif; ?>
             <?php foreach ($appointments as $appointment): ?>
                 <article class="visit-row">
                     <p class="visit-time"><?php echo h($appointment['time']); ?></p>
@@ -97,22 +136,24 @@ admin_page_start('Appointments', 'dashboard');
                     <div class="visit-actions">
                         <?php admin_status($appointment['status'], $appointment['status_label']); ?>
                         <?php if ($appointment['status'] === 'confirmed'): ?>
-                            <a class="btn btn-line" href="notifications.php">Message</a>
+                            <a class="btn btn-line" href="notifications.php">Message templates</a>
                         <?php elseif ($appointment['status'] === 'no_reply'): ?>
                             <form method="post">
+                                <?php echo csrf_field(); ?>
                                 <input type="hidden" name="action" value="remind">
                                 <input type="hidden" name="patient_id[]" value="<?php echo h($appointment['id']); ?>">
-                                <button class="btn btn-solid" type="submit">Send reminder</button>
+                                <button class="btn btn-solid" type="submit">Mark reminder sent</button>
                             </form>
                         <?php elseif ($appointment['status'] === 'reminder_sent'): ?>
                             <a class="btn btn-line" href="tel:<?php echo h($appointment['phone_digits']); ?>">Call patient</a>
-                        <?php elseif ($waiting !== []): ?>
+                        <?php elseif ($appointment['status'] === 'cancelled' && $waiting !== []): ?>
                             <details class="fill">
                                 <summary>Fill from waitlist</summary>
                                 <form method="post">
+                                    <?php echo csrf_field(); ?>
                                     <input type="hidden" name="action" value="fill">
                                     <input type="hidden" name="slot_id" value="<?php echo h($appointment['id']); ?>">
-                                    <p>This opening is one 15-minute block.</p>
+                                    <p>This opening is one visit block. No SMS will be sent.</p>
                                     <?php foreach ($waiting as $person): ?>
                                         <label>
                                             <input type="radio" name="waitlist_id" value="<?php echo h($person['id']); ?>" required>
@@ -138,6 +179,7 @@ admin_page_start('Appointments', 'dashboard');
             <?php else: ?>
                 <p class="muted" id="follow-count"><?php echo h((string) count($unconfirmed)); ?> patients have not confirmed.</p>
                 <form method="post" id="follow-form">
+                    <?php echo csrf_field(); ?>
                     <input type="hidden" name="action" value="remind">
                     <ul class="follow-list">
                         <?php foreach ($unconfirmed as $appointment): ?>
@@ -149,8 +191,9 @@ admin_page_start('Appointments', 'dashboard');
                             </li>
                         <?php endforeach; ?>
                     </ul>
-                    <p class="sms" id="sms-preview"><?php echo h(preview_reminder_text($unconfirmed[0])); ?></p>
-                    <button class="btn btn-solid btn-wide" type="submit" id="send-texts">Send text to <?php echo h((string) count($unconfirmed)); ?> patients</button>
+                    <p class="sms" id="sms-preview"><?php echo h(admin_reminder_preview_text($unconfirmed[0])); ?></p>
+                    <p class="muted">This marks ConfirmationStatus as Pending and NotificationStatus as Sent. It does not send an SMS.</p>
+                    <button class="btn btn-solid btn-wide" type="submit" id="send-texts">Mark reminder for <?php echo h((string) count($unconfirmed)); ?> patients</button>
                 </form>
                 <script type="application/json" id="follow-messages"><?php echo json_encode($messages, JSON_UNESCAPED_SLASHES); ?></script>
             <?php endif; ?>

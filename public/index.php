@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../src/bootstrap.php';
 require_once __DIR__ . '/../src/preview_data.php';
+require_once __DIR__ . '/../src/csrf.php';
 require_once __DIR__ . '/../src/patient_copy.php';
 require_once __DIR__ . '/../src/patient_layout.php';
+require_once __DIR__ . '/../src/patient_booking.php';
 require_once __DIR__ . '/../src/patient_calendar.php';
 require_once __DIR__ . '/../src/patient_status.php';
 
-if (session_status() !== PHP_SESSION_ACTIVE) {
-    session_start();
-}
+csrf_ensure_session();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     patient_status_process();
@@ -22,16 +22,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 }
 
 $errors = [];
-$values = preview_booking_defaults();
+$values = patient_booking_defaults();
+$formError = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
-    $checked = preview_validate_booking($_POST);
-    $errors = $checked['errors'];
-    $values = $checked['values'];
-    if ($errors === []) {
-        $_SESSION['booking_preview'] = $checked['booking'];
-        header('Location: confirmation.php');
-        exit;
+    if (!csrf_verify_request()) {
+        $formError = 'Your form expired. Please try again.';
+    } else {
+        $checked = patient_booking_submit($_POST);
+        $errors = $checked['errors'];
+        $values = $checked['values'];
+        $formError = (string) ($checked['error'] ?? '');
+        if ($errors === [] && is_array($checked['booking'])) {
+            patient_booking_store_confirmation($checked['booking']);
+            header('Location: confirmation.php');
+            exit;
+        }
     }
 }
 
@@ -50,8 +56,15 @@ patient_page_start(patient_text('book_title'), isset($_GET['change']) ? 'status'
             </div>
 
             <form class="book-card" method="post" action="index.php">
+                <?php echo csrf_field(); ?>
                 <h2><?php echo h(patient_text('card_title')); ?></h2>
-                <?php if ($errors !== []): ?>
+                <?php if ($formError !== ''): ?>
+                    <div class="errors" role="alert">
+                        <ul>
+                            <li><?php echo h($formError); ?></li>
+                        </ul>
+                    </div>
+                <?php elseif ($errors !== []): ?>
                     <div class="errors" role="alert">
                         <ul>
                             <?php foreach ($errors as $key => $code): ?>
@@ -85,7 +98,7 @@ patient_page_start(patient_text('book_title'), isset($_GET['change']) ? 'status'
                     <legend>2. <?php echo h(patient_text('step_time')); ?></legend>
                     <p class="picker-label"><?php echo h(patient_text('choose_date')); ?></p>
                     <?php patient_render_calendar((string) $values['appointment_date']); ?>
-                    <?php if (preview_open_dates() !== []): ?>
+                    <?php if (patient_booking_open_dates() !== []): ?>
                         <p class="picker-label"><?php echo h(patient_text('choose_time')); ?></p>
                         <?php patient_render_times((string) $values['appointment_date'], (string) $values['appointment_time']); ?>
                     <?php endif; ?>
@@ -96,7 +109,7 @@ patient_page_start(patient_text('book_title'), isset($_GET['change']) ? 'status'
                     <div class="contact-row">
                         <label>
                             <span class="sr-only"><?php echo h(patient_text('full_name')); ?></span>
-                            <input name="patient_name" type="text" autocomplete="name" maxlength="80" required placeholder="<?php echo h(patient_text('full_name')); ?>" value="<?php echo h($values['patient_name']); ?>"<?php echo isset($errors['patient_name']) ? ' aria-invalid="true"' : ''; ?>>
+                            <input name="patient_name" type="text" autocomplete="name" maxlength="50" required placeholder="<?php echo h(patient_text('full_name')); ?>" value="<?php echo h($values['patient_name']); ?>"<?php echo isset($errors['patient_name']) ? ' aria-invalid="true"' : ''; ?>>
                         </label>
                         <label>
                             <span class="sr-only"><?php echo h(patient_text('phone')); ?></span>

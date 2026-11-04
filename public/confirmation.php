@@ -4,16 +4,13 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../src/bootstrap.php';
 require_once __DIR__ . '/../src/preview_data.php';
+require_once __DIR__ . '/../src/csrf.php';
 require_once __DIR__ . '/../src/patient_copy.php';
 require_once __DIR__ . '/../src/patient_layout.php';
+require_once __DIR__ . '/../src/patient_booking.php';
 
-if (session_status() !== PHP_SESSION_ACTIVE) {
-    session_start();
-}
-$booking = $_SESSION['booking_preview'] ?? null;
-if (!is_array($booking) || ($booking['status'] ?? '') === 'canceled') {
-    $booking = null;
-}
+csrf_ensure_session();
+$booking = patient_booking_load_confirmation();
 
 patient_page_start(patient_text('thanks'), 'home');
 ?>

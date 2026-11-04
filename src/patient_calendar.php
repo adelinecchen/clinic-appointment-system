@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/patient_booking.php';
+
 function patient_weekday_labels(): array
 {
     return patient_language() === 'es'
@@ -36,16 +38,16 @@ function patient_month_label(string $value, string $fallback): string
     return trim($month . ' ' . $year);
 }
 
-function patient_render_calendar(string $selected, string $field = 'appointment_date'): void
+function patient_render_calendar(string $selected, string $field = 'appointment_date', ?int $exceptAppointmentId = null): void
 {
-    $months = preview_booking_months($selected);
+    $months = patient_booking_months($selected, $exceptAppointmentId);
     if ($months === []) {
         echo '<p class="hint">' . h(patient_text('no_dates')) . '</p>';
 
         return;
     }
 
-    $openValues = array_column(preview_open_dates(), 'value');
+    $openValues = array_column(patient_booking_open_dates($exceptAppointmentId), 'value');
     if ($selected === '' || !in_array($selected, $openValues, true)) {
         $selected = $openValues[0];
     }
@@ -91,14 +93,14 @@ function patient_render_calendar(string $selected, string $field = 'appointment_
     <?php
 }
 
-function patient_render_times(string $selectedDate, string $selectedTime): void
+function patient_render_times(string $selectedDate, string $selectedTime, ?int $exceptAppointmentId = null): void
 {
     if ($selectedDate === '') {
         return;
     }
     ?>
     <div class="time-pills" role="radiogroup" aria-label="<?php echo h(patient_text('choose_time')); ?>">
-        <?php foreach (preview_open_slots($selectedDate) as $slot): ?>
+        <?php foreach (patient_booking_open_slots($selectedDate, $exceptAppointmentId) as $slot): ?>
             <label class="time-chip">
                 <input type="radio" name="appointment_time" value="<?php echo h($slot['value']); ?>"<?php echo $selectedTime === $slot['value'] ? ' checked' : ''; ?>>
                 <span><?php echo h($slot['label']); ?></span>
@@ -108,11 +110,11 @@ function patient_render_times(string $selectedDate, string $selectedTime): void
     <?php
 }
 
-function patient_slot_map_json(): void
+function patient_slot_map_json(?int $exceptAppointmentId = null): void
 {
     $slotMap = [];
-    foreach (preview_clinic_dates() as $clinicDay) {
-        $slotMap[$clinicDay['value']] = preview_visit_slots($clinicDay['value']);
+    foreach (patient_booking_open_dates($exceptAppointmentId) as $clinicDay) {
+        $slotMap[$clinicDay['value']] = patient_booking_visit_slots($clinicDay['value'], $exceptAppointmentId);
     }
     echo '<script type="application/json" id="slot-data">' . json_encode($slotMap, JSON_UNESCAPED_SLASHES) . '</script>';
 }

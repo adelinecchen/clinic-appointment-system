@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/staff_accounts.php';
+require_once __DIR__ . '/admin_desk.php';
 
 function admin_require_login(): void
 {
@@ -27,10 +28,16 @@ function admin_page_start(string $title, string $active): void
     admin_require_login();
 
     $clinic = preview_clinic();
+    $today = admin_desk_today()->format('Y-m-d');
+    $todayUnconfirmed = count(array_filter(
+        admin_desk_appointments_for_date($today),
+        static fn (array $row): bool => in_array($row['status'], ['no_reply', 'reminder_sent'], true)
+    ));
+    $upcomingUnconfirmed = admin_upcoming_counts(admin_upcoming_appointments())['unconfirmed'];
     $badges = [
-        'notifications' => count(preview_unconfirmed(preview_appointments())),
-        'patients' => preview_upcoming_counts(preview_upcoming_appointments())['unconfirmed'],
-        'waitlist' => count(preview_waitlist()),
+        'notifications' => $todayUnconfirmed,
+        'patients' => $upcomingUnconfirmed,
+        'waitlist' => count(waitlist_desk_entries()),
     ];
     $staff = staff_current();
     $items = [
