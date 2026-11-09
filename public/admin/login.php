@@ -21,14 +21,14 @@ if (staff_current() !== null) {
 }
 
 $error = false;
-$username = '';
+$email = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!csrf_verify_request()) {
         $error = true;
     } else {
-        $username = trim((string) ($_POST['username'] ?? ''));
+        $email = trim((string) ($_POST['email'] ?? $_POST['username'] ?? ''));
         $password = (string) ($_POST['password'] ?? '');
-        $account = staff_authenticate($username, $password);
+        $account = staff_authenticate($email, $password);
         if ($account !== null) {
             staff_login($account);
             header('Location: index.php');
@@ -39,6 +39,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $clinic = preview_clinic();
+$showLocalHint = admin_seed_enabled() && admin_is_local_env();
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -54,13 +55,13 @@ $clinic = preview_clinic();
         <h1>Staff login</h1>
         <p class="muted"><?php echo h($clinic['name']); ?></p>
         <?php if ($error): ?>
-            <p class="login-error" role="alert">That username or password is not right.</p>
+            <p class="login-error" role="alert">That email or password is not right.</p>
         <?php endif; ?>
         <form method="post" action="login.php">
             <?php echo csrf_field(); ?>
             <label>
-                Email or username
-                <input name="username" type="text" autocomplete="username" required maxlength="80" value="<?php echo h($username); ?>">
+                Email
+                <input name="email" type="email" autocomplete="username" required maxlength="80" value="<?php echo h($email); ?>">
             </label>
             <label>
                 Password
@@ -68,7 +69,9 @@ $clinic = preview_clinic();
             </label>
             <button class="btn btn-solid btn-wide" type="submit">Log in</button>
         </form>
-        <p class="login-hint">Database admin (seeded if empty): <strong>desk@clinic.local</strong> / <strong>clinic-desk</strong>. Legacy JSON demo: <strong>staff</strong> or <strong>desk</strong> / <strong>clinic-desk</strong> (roles/invites still use JSON until the Admin schema adds Username and Role).</p>
+        <?php if ($showLocalHint): ?>
+            <p class="login-hint">Local demo seeding is enabled. Use the email and password from your local <code>.env</code> (<code>ADMIN_EMAIL</code> / <code>ADMIN_PASSWORD</code>) when the Admin table is empty.</p>
+        <?php endif; ?>
         <a class="side-link login-back" href="../index.php">Patient website</a>
     </main>
 </body>

@@ -13,11 +13,11 @@ public/                      Web root
   confirmation.php           Preview receipt after a valid form submit
   admin/index.php            Staff dashboard
   admin/login.php            Staff login
-  admin/staff.php            Super admin accounts and invites
-  admin/invite.php           Invitee creates their password
-  admin/patients.php         Sample patient list
+  admin/staff.php            Super admin account management (MariaDB Admin)
+  admin/invite.php           Retired; redirects to login
+  admin/patients.php         Patient list
   admin/availability.php     Clinic calendar and 15-minute holds
-  admin/waitlist.php         Sample waitlist
+  admin/waitlist.php         Waitlist
   admin/notifications.php    Editable patient texts
   api/health.php             JSON health check (PHP up, optional PDO ping)
   assets/css/                Patient and staff styles
@@ -25,15 +25,17 @@ public/                      Web root
 src/                         Not meant to be requested by a browser
   bootstrap.php              Loads .env and shared helpers
   db.php                     PDO connection to clinic_db
-  preview_data.php           Fictional clinic content and form checks
+  admin_auth.php             Admin email login and account CRUD
+  preview_data.php           Clinic display helpers and message templates
   patient_layout.php         Patient page header and footer
   admin_layout.php           Staff sidebar layout
   .htaccess                  Denies direct web access to this folder
 database/                    SQL schema used in MySQL Workbench
   databaseDDL.sql            Tables, keys, and constraints for clinic_db
+  migrations/                Versioned ALTER scripts for existing databases
 ```
 
-`src/preview_data.php` is sample content for the screens. It is not a database design. The clinic name defaults to Global Health and Education clinic. The sample patients are Sarah Smith, Mark Smith, and George Marcus. Set `APP_NAME` in `.env` to show a different display name.
+Staff sign in with email against the MariaDB `Admin` table. Set `APP_NAME` in `.env` for the display name.
 
 ## Requirements
 
@@ -126,7 +128,7 @@ Patient site:
 
 Staff desk:
 
-1. Open the staff desk. Super admin is **staff** / **clinic-desk**. A regular admin is **desk** / **clinic-desk**. Only a super admin sees **Staff**, where they can email an invite, create an account, change roles, or delete accounts.
+1. Open the staff desk and sign in with an Admin **email** and password from MariaDB. Only a **super_admin** sees **Staff**, where they can create, edit, or delete desk accounts (no invites or usernames).
 2. The sample day shows Booked 6, Confirmed 2, Not confirmed 3, and Cancelled 1. Sarah Smith is at 9:00 and Mark Smith has the next 15 minutes, 9:15. George Marcus and Luis Ortega have no reply. Amina Cole’s reminder was sent. Carlos Ruiz cancelled.
 3. In Follow up, the unconfirmed names are checked. Send text marks those reminders as sent on this sample day.
 4. On Carlos Ruiz’s row, choose Fill from waitlist and give that 15-minute block to Elena Park or James Okonkwo. The cancelled count drops, and that person leaves the waitlist.
@@ -146,10 +148,11 @@ cp .env.example .env
 
 | Variable | Purpose |
 | --- | --- |
-| `APP_ENV` | `local` while developing |
-| `APP_NAME` | Name shown on the placeholder pages |
-| `ADMIN_USERNAME` | Staff login name. Local demo: `staff` |
-| `ADMIN_PASSWORD` | Staff login password. Local demo: `clinic-desk` |
+| `APP_ENV` | `local` while developing; use something else outside local demo |
+| `APP_NAME` | Name shown on the pages |
+| `ADMIN_SESSION_LIFETIME` | Staff session lifetime in seconds (default 28800) |
+| `ADMIN_SEED_ENABLED` | `true` only for local empty-table demo seeding; keep `false` otherwise |
+| `ADMIN_EMAIL` / `ADMIN_PASSWORD` / `ADMIN_NAME` / `ADMIN_PHONE` / `ADMIN_ROLE` | Used only when local seeding is explicitly enabled |
 | `DB_HOST` | Database host, usually `127.0.0.1` for XAMPP |
 | `DB_PORT` | Database port, usually `3306` |
 | `DB_NAME` | Database name. Local schema: `clinic_db` |
@@ -157,6 +160,31 @@ cp .env.example .env
 | `DB_PASSWORD` | Database password. XAMPP default is often empty |
 
 `.env` is listed in `.gitignore`. Commit `.env.example` only.
+
+### First production super_admin
+
+Do **not** enable `ADMIN_SEED_ENABLED` outside local development. Create the first account with a one-time SQL insert (replace the password hash by generating it locally):
+
+```bash
+/Applications/XAMPP/xamppfiles/bin/php -r 'echo password_hash("choose-a-strong-password", PASSWORD_DEFAULT), PHP_EOL;'
+```
+
+```sql
+INSERT INTO Admin (Name, PhoneNumber, Email, PasswordHash, Role)
+VALUES (
+  'Clinic Lead',
+  '5550100000',
+  'lead@example.org',
+  '<paste-password-hash-here>',
+  'super_admin'
+);
+```
+
+Apply schema updates on existing databases with:
+
+```bash
+/Applications/XAMPP/xamppfiles/bin/mysql -h 127.0.0.1 -u root < database/migrations/001_admin_role.sql
+```
 
 ## Verify the database connection
 

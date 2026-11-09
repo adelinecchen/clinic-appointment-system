@@ -20,12 +20,14 @@ CREATE TABLE Schedule (
 
 
 -- 3. ADMIN
+-- Role is validated in PHP as 'admin' or 'super_admin'.
 CREATE TABLE Admin (
     Admin_ID INT AUTO_INCREMENT PRIMARY KEY,
     Name VARCHAR(50) NOT NULL,
     PhoneNumber VARCHAR(15) NOT NULL UNIQUE,
     Email VARCHAR(80) NOT NULL UNIQUE,
-    PasswordHash VARCHAR(255) NOT NULL # hashing in PHP before storing
+    PasswordHash VARCHAR(255) NOT NULL, # hashing in PHP before storing
+    Role VARCHAR(20) NOT NULL DEFAULT 'admin'
 ) ENGINE=InnoDB;
 
 
