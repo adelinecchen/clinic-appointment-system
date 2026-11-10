@@ -15,6 +15,9 @@ function patient_page_start(string $title, string $active): void
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title><?php echo h($title . ' — ' . $clinic['name']); ?></title>
     <meta name="description" content="<?php echo h($clinic['name'] . ' — ' . $clinic['doctor']); ?>">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="assets/css/patient.css">
 </head>
 <body>
@@ -23,8 +26,9 @@ function patient_page_start(string $title, string $active): void
         <div class="wrap header-inner">
             <a class="brand" href="index.php">
                 <span class="mark" aria-hidden="true">
-                    <svg viewBox="0 0 24 24" width="22" height="22" focusable="false">
-                        <path fill="currentColor" d="M12 20s-7-4.4-7-9a4 4 0 0 1 7-2 4 4 0 0 1 7 2c0 4.6-7 9-7 9z"/>
+                    <svg viewBox="0 0 48 48" width="22" height="22" focusable="false">
+                        <rect x="18" y="6" width="12" height="36" rx="3" fill="currentColor"/>
+                        <rect x="6" y="18" width="36" height="12" rx="3" fill="currentColor"/>
                     </svg>
                 </span>
                 <span>
