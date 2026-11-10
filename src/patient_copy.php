@@ -41,6 +41,7 @@ function patient_text(string $key): string
             'step_contact' => 'Your name and phone number',
             'full_name' => 'Full name',
             'phone' => 'Phone number',
+            'sms_consent' => 'Text me about this visit (optional). Message and data rates may apply. Reply STOP to opt out.',
             'person' => 'Name',
             'you' => 'You',
             'add_person' => 'Add another person',
@@ -83,6 +84,8 @@ function patient_text(string $key): string
             'reschedule' => 'Pick a new time',
             'save_change' => 'Save this time',
             'coming' => 'You are coming',
+            'address' => '4440 Springfield Road, Glen Allen, Virginia',
+            'address_note' => 'Suite 101. The sign outside says Surya P. Dhakar DDS.',
         ],
         'es' => [
             'book_title' => 'Reserve su visita',
@@ -106,6 +109,7 @@ function patient_text(string $key): string
             'step_contact' => 'Su nombre y teléfono',
             'full_name' => 'Nombre completo',
             'phone' => 'Teléfono',
+            'sms_consent' => 'Envíeme textos sobre esta visita (opcional). Pueden aplicar tarifas. Responda STOP para cancelar.',
             'person' => 'Nombre',
             'you' => 'Usted',
             'add_person' => 'Agregar otra persona',
@@ -148,6 +152,8 @@ function patient_text(string $key): string
             'reschedule' => 'Elegir otro horario',
             'save_change' => 'Guardar este horario',
             'coming' => 'Usted viene',
+            'address' => '4440 Springfield Road, Glen Allen, Virginia',
+            'address_note' => 'Suite 101. El letrero de afuera dice Surya P. Dhakar DDS.',
         ],
     ];
 

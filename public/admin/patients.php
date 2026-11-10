@@ -43,6 +43,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif ($appointment !== null && $action === 'cancel' && $appointment['AppointmentStatus'] !== 'Cancelled') {
             $result = appointment_cancel($id);
             if ($result['ok']) {
+                require_once __DIR__ . '/../../src/sms_notifications.php';
+                sms_notify_cancel($id);
                 $notice = 'Cancelled the visit at ' . $appointment['ScheduleTimeLabel'] . '.';
                 $view = 'cancelled';
             } else {
@@ -59,7 +61,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif ($appointment !== null && $action === 'remind') {
             $result = admin_mark_reminder_sent($id);
             if ($result['ok']) {
-                $notice = 'Marked a reminder as sent (no SMS was sent).';
+                $notice = 'Reminder text accepted by the provider (not proof of delivery).';
             } else {
                 $actionError = (string) $result['error'];
             }
@@ -76,6 +78,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $time = (string) ($_POST['time'] ?? '');
             $result = appointment_reschedule($id, $date, $time);
             if ($result['ok']) {
+                require_once __DIR__ . '/../../src/sms_notifications.php';
+                sms_notify_reschedule($id);
                 $notice = 'Moved the visit to ' . $result['appointment']['ScheduleTimeLabel'] . ' on ' . $result['appointment']['ScheduleDate'] . '.';
             } else {
                 $actionError = (string) $result['error'];
@@ -216,7 +220,7 @@ admin_page_start('Patients', 'patients');
                                         <input type="hidden" name="id" value="<?php echo h($appointment['id']); ?>">
                                         <input type="hidden" name="q" value="<?php echo h($query); ?>">
                                         <input type="hidden" name="view" value="<?php echo h($view); ?>">
-                                        <button class="btn btn-solid" type="submit">Mark reminder sent</button>
+                                        <button class="btn btn-solid" type="submit">Send reminder text</button>
                                     </form>
                                 <?php elseif ($appointment['status'] === 'reminder_sent'): ?>
                                     <a class="btn btn-line" href="tel:<?php echo h($appointment['phone_digits']); ?>">Call patient</a>

@@ -164,8 +164,11 @@ function clinic_desk_status_key(
         return 'confirmed';
     }
 
+    // Reminder badge only when a confirmation reply was requested (Pending).
+    // Booking/cancel/reschedule texts may set NotificationStatus=Sent while
+    // ConfirmationStatus stays Not Sent — those remain "no_reply" on the desk.
     $notification = clinic_normalize_notification_status($notificationStatus);
-    if ($notification === 'Sent' && in_array($confirmationStatus, ['Pending', 'Not Sent'], true)) {
+    if ($notification === 'Sent' && $confirmationStatus === 'Pending') {
         return 'reminder_sent';
     }
 

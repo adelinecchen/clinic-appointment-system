@@ -26,9 +26,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $chosen = [];
             }
             $result = admin_mark_reminders_sent($chosen);
-            $notice = count($result['marked']) === 1
-                ? 'Marked a reminder as sent (no SMS was sent).'
-                : 'Marked ' . count($result['marked']) . ' reminders as sent (no SMS was sent).';
+            $sent = count($result['marked']);
+            $failed = count($result['failed']);
+            if ($sent > 0 && $failed === 0) {
+                $notice = $sent === 1
+                    ? 'Reminder text accepted by the provider (not proof of delivery).'
+                    : 'Reminder texts accepted by the provider for ' . $sent . ' visits (not proof of delivery).';
+            } elseif ($sent > 0) {
+                $notice = 'Accepted ' . $sent . ' reminder(s); ' . $failed . ' could not be sent.';
+                $firstError = (string) ($result['failed'][0]['error'] ?? '');
+                if ($firstError !== '') {
+                    $actionError = $firstError;
+                }
+            } else {
+                $actionError = (string) ($result['failed'][0]['error'] ?? 'No reminder texts were sent.');
+            }
         }
 
         if ($action === 'fill') {

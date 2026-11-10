@@ -46,6 +46,8 @@ function patient_status_process(): void
         $result = appointment_cancel($appointmentId);
         if ($result['ok']) {
             $message = patient_text('canceled');
+            require_once __DIR__ . '/sms_notifications.php';
+            sms_notify_cancel($appointmentId);
             $appointment = appointment_find_by_id($appointmentId);
             $patient = $appointment !== null ? patient_find_by_id((int) $appointment['Patient_ID']) : null;
             if ($appointment !== null && $patient !== null) {
@@ -67,7 +69,9 @@ function patient_status_process(): void
         $time = (string) ($_POST['appointment_time'] ?? '');
         $result = appointment_reschedule($appointmentId, $date, $time);
         if ($result['ok']) {
-            $appointment = $result['appointment'];
+            require_once __DIR__ . '/sms_notifications.php';
+            sms_notify_reschedule($appointmentId);
+            $appointment = appointment_find_by_id($appointmentId) ?? $result['appointment'];
             $patient = patient_find_by_id((int) $appointment['Patient_ID']);
             $booking = patient_booking_view_model(
                 $appointment,

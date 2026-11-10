@@ -210,6 +210,20 @@ legend { font-weight: 750; margin-bottom: 0.55rem; color: var(--teal); font-size
 .time-chip:has(input:checked) span { background: var(--teal); color: white; border-color: var(--teal); }
 .time-chip:has(input:focus-visible) span { outline: 3px solid rgba(42, 165, 173, 0.45); outline-offset: 2px; }
 
+.sms-consent {
+    display: flex;
+    gap: 0.55rem;
+    align-items: flex-start;
+    margin-top: 0.85rem;
+    color: var(--ink-soft, #3d4f4c);
+    font-size: 0.92rem;
+    line-height: 1.35;
+}
+.sms-consent input {
+    margin-top: 0.2rem;
+    flex: 0 0 auto;
+}
+
 .contact-row input, .lookup input {
     width: 100%;
     box-sizing: border-box;

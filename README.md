@@ -43,8 +43,6 @@ Staff sign in with email against the MariaDB `Admin` table. Set `APP_NAME` in `.
 - MySQL or MariaDB through XAMPP, with the `clinic_db` schema already created
 - Git
 
-No Composer packages or frontend framework are used.
-
 ## Run it with XAMPP
 
 1. Install [XAMPP](https://www.apachefriends.org/) and start **Apache** and **MySQL** from the XAMPP control panel. MySQL is required for the health check to report `connected`.
@@ -117,27 +115,6 @@ Expected body when MySQL is running and `.env` matches your local `clinic_db`:
 {"status":"ok","service":"clinic-appointments","database":"connected"}
 ```
 
-## Test the preview screens
-
-Patient site:
-
-1. Open the homepage. Choose **First Visit** or **Follow-up visit**. Use the calendar to pick an open day, then a 15-minute time. Enter a name and phone number.
-2. Submit **Book my visit**. The next page shows the visit and says a text is on the way. Scroll to **Check your visit** on the homepage, or tap that link in the header, to look it up, pick a new time, or cancel.
-3. Submit the form with an empty name. The form should stay put and list what to fix. A blocked time cannot be selected.
-4. Choose **Español** in the header. The booking screen should switch to Spanish.
-
-Staff desk:
-
-1. Open the staff desk and sign in with an Admin **email** and password from MariaDB. Only a **super_admin** sees **Staff**, where they can create, edit, or delete desk accounts (no invites or usernames).
-2. The sample day shows Booked 6, Confirmed 2, Not confirmed 3, and Cancelled 1. Sarah Smith is at 9:00 and Mark Smith has the next 15 minutes, 9:15. George Marcus and Luis Ortega have no reply. Amina Cole’s reminder was sent. Carlos Ruiz cancelled.
-3. In Follow up, the unconfirmed names are checked. Send text marks those reminders as sent on this sample day.
-4. On Carlos Ruiz’s row, choose Fill from waitlist and give that 15-minute block to Elena Park or James Okonkwo. The cancelled count drops, and that person leaves the waitlist.
-5. Use the sidebar for Patients, Availability, Waitlist, and Messages. On Messages, edit a text and save. The Follow-up box on Appointments uses that last template.
-6. On Availability, use the calendar to open a day for booking, or close one. On an open day, block a 15-minute time. The patient site only lists days the clinic opened. 10:30 AM starts blocked. **Log out** returns to the login page.
-7. Narrow the browser window. The patient page should stack, and the staff navigation should sit above the content.
-
-The health check should still return JSON. After `.env` is filled in and MySQL is running, `database` should be `connected`.
-
 ## Local configuration
 
 ```bash
@@ -185,6 +162,10 @@ Apply schema updates on existing databases with:
 ```bash
 /Applications/XAMPP/xamppfiles/bin/mysql -h 127.0.0.1 -u root < database/migrations/001_admin_role.sql
 ```
+
+### SMS (Twilio)
+
+Outbound texts use `src/sms.php` in **mock** mode by default (`SMS_ENABLED=false`, `SMS_MODE=mock`). Live sending requires Twilio credentials, A2P 10DLC registration, a signed BAA with a HIPAA-eligible account configuration, and clinic-approved consent copy. See `.env.example`. Daily reminders can be scheduled with `scripts/send_appointment_reminders.php`.
 
 ## Verify the database connection
 

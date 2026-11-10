@@ -154,6 +154,7 @@ function patient_booking_defaults(): array
         'appointment_time' => $slots[0]['value'] ?? '',
         'patient_name' => '',
         'patient_phone' => '',
+        'sms_consent' => false,
     ];
 }
 
@@ -222,6 +223,7 @@ function patient_booking_submit(array $input): array
 
     $phone = trim((string) ($input['patient_phone'] ?? ''));
     $values['patient_phone'] = $phone;
+    $values['sms_consent'] = !empty($input['sms_consent']) && (string) $input['sms_consent'] !== '0';
     $digits = patient_phone_digits($phone);
     if (strlen($digits) !== 10) {
         $errors['patient_phone'] = 'phone';
@@ -290,6 +292,16 @@ function patient_booking_submit(array $input): array
             $createdPatient['patient']['Name'],
             $createdPatient['patient']['PhoneNumber']
         );
+
+        $wantsSms = !empty($input['sms_consent']) && (string) $input['sms_consent'] !== '0';
+        $booking['sms_consent'] = $wantsSms;
+        $booking['sms'] = null;
+        if ($wantsSms) {
+            require_once __DIR__ . '/sms_consent.php';
+            require_once __DIR__ . '/sms_notifications.php';
+            sms_record_consent($formattedPhone, 'booking');
+            $booking['sms'] = sms_notify_booking((int) $appointment['Appointment_ID']);
+        }
 
         return [
             'errors' => [],

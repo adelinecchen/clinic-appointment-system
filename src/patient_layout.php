@@ -47,8 +47,8 @@ function patient_page_start(string $title, string $active): void
         </div>
     </header>
     <p class="address">
-        <span><?php echo h($clinic['address']); ?></span>
-        <span><?php echo h($clinic['address_note']); ?></span>
+        <span><?php echo h(patient_text('address')); ?></span>
+        <span><?php echo h(patient_text('address_note')); ?></span>
     </p>
     <main id="main">
     <?php

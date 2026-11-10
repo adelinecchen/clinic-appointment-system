@@ -41,7 +41,7 @@ admin_page_start('Messages', 'notifications');
         <div>
             <h1>Messages</h1>
         </div>
-        <p class="head-note">Edit local message templates. The clinic does not send SMS from this screen. Desk “mark reminder sent” only updates ConfirmationStatus and NotificationStatus in the database.</p>
+        <p class="head-note">Edit local SMS templates used for booking, reminders, cancel, and reschedule. Sending happens from Appointments/Patients or the reminder cron. NotificationStatus means the provider accepted the request — not carrier delivery.</p>
     </header>
     <?php if ($saved): ?>
         <p class="desk-note">The templates are saved on this computer.</p>

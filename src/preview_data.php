@@ -425,10 +425,12 @@ function preview_message_path(): string
 function preview_message_defaults(): array
 {
     return [
-        'booking' => 'Hi {name}, this is {clinic}. We booked your visit on {date} at {time}. Reply YES to confirm, or open the link in this text.',
-        'two_day' => 'Hi {name}, this is {clinic}. Please confirm your visit on {date} at {time}. Reply YES or NO, or use the confirmation link.',
-        'one_day' => 'Hi {name}, this is {clinic}. We still need a confirmation for tomorrow at {time}. Reply YES or tap the link. If we do not hear back, the desk will call.',
-        'follow_up' => 'Hi {name}, this is {clinic}. Please tap to confirm your visit at {time}.',
+        'booking' => 'Hi {name}, this is {clinic}. We booked your visit on {date} at {time}. Reply STOP to opt out of texts.',
+        'two_day' => 'Hi {name}, this is {clinic}. Please confirm your visit on {date} at {time}. Reply YES or NO. Reply STOP to opt out.',
+        'one_day' => 'Hi {name}, this is {clinic}. Reminder: your visit is tomorrow at {time}. Reply YES to confirm, or STOP to opt out.',
+        'follow_up' => 'Hi {name}, this is {clinic}. Please confirm your visit on {date} at {time}. Reply YES or NO. Reply STOP to opt out.',
+        'cancel' => 'Hi {name}, this is {clinic}. Your visit on {date} at {time} was cancelled. Reply STOP to opt out of texts.',
+        'reschedule' => 'Hi {name}, this is {clinic}. Your visit was moved to {date} at {time}. Reply STOP to opt out of texts.',
     ];
 }
 
@@ -1152,9 +1154,21 @@ function preview_notifications(): array
         ],
         [
             'key' => 'follow_up',
-            'title' => 'Follow-up text',
+            'title' => 'Desk reminder',
             'when' => 'From the desk when someone has not confirmed',
             'message' => preview_fill_message($templates['follow_up'], $sample),
+        ],
+        [
+            'key' => 'cancel',
+            'title' => 'Cancellation',
+            'when' => 'After a visit is cancelled',
+            'message' => preview_fill_message($templates['cancel'], $sample),
+        ],
+        [
+            'key' => 'reschedule',
+            'title' => 'Reschedule',
+            'when' => 'After a visit time changes',
+            'message' => preview_fill_message($templates['reschedule'], $sample),
         ],
     ];
 }

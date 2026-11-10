@@ -116,6 +116,10 @@ patient_page_start(patient_text('book_title'), isset($_GET['change']) ? 'status'
                             <input name="patient_phone" type="tel" autocomplete="tel" inputmode="tel" required placeholder="(757) 555-0142" value="<?php echo h($values['patient_phone']); ?>"<?php echo isset($errors['patient_phone']) ? ' aria-invalid="true"' : ''; ?>>
                         </label>
                     </div>
+                    <label class="sms-consent">
+                        <input type="checkbox" name="sms_consent" value="1"<?php echo !empty($values['sms_consent']) ? ' checked' : ''; ?>>
+                        <span><?php echo h(patient_text('sms_consent')); ?></span>
+                    </label>
                 </fieldset>
 
                 <button class="book-submit" type="submit"><?php echo h(patient_text('book_button')); ?></button>
