@@ -101,6 +101,19 @@ function patient_phone_digits(string $phoneNumber): string
 }
 
 /**
+ * Display phones as (757) 555-0142 when 10 digits are available.
+ */
+function patient_format_phone(string $phoneNumber): string
+{
+    $digits = patient_phone_digits($phoneNumber);
+    if (strlen($digits) !== 10) {
+        return trim($phoneNumber) !== '' ? $phoneNumber : $digits;
+    }
+
+    return sprintf('(%s) %s-%s', substr($digits, 0, 3), substr($digits, 3, 3), substr($digits, 6, 4));
+}
+
+/**
  * @return list<array{Patient_ID: int, Name: string, PhoneNumber: string}>
  */
 function patients_find_by_phone(string $phoneNumber): array

@@ -176,9 +176,33 @@ function schedule_open_day(string $date, string $start, string $end, int $block)
 }
 
 /**
- * Mark every slot on a date Closed. Rows stay so appointments keep their FK.
+ * True when a non-cancelled appointment already occupies this date+time.
+ */
+function schedule_slot_has_active_booking(string $date, string $time): bool
+{
+    $timeValue = schedule_time_value($time);
+    $statement = db()->prepare(
+        'SELECT Appointment_ID
+         FROM Appointment
+         WHERE ScheduleDate = :date
+           AND ScheduleTime = :time
+           AND AppointmentStatus <> :cancelled
+         LIMIT 1'
+    );
+    $statement->execute([
+        'date' => $date,
+        'time' => $timeValue,
+        'cancelled' => 'Cancelled',
+    ]);
+
+    return $statement->fetch() !== false;
+}
+
+/**
+ * Close only free slots on a date. Booked visits stay open on the schedule
+ * so staff can still see them as booked (not "blocked").
  *
- * @return array{ok: true, date: string, closed: int}|array{ok: false, error: string, code: string}
+ * @return array{ok: true, date: string, closed: int, kept_booked: int}|array{ok: false, error: string, code: string}
  */
 function schedule_close_day(string $date): array
 {
@@ -191,22 +215,43 @@ function schedule_close_day(string $date): array
     }
 
     try {
-        $statement = db()->prepare(
-            'UPDATE Schedule
-             SET Status = :new_status
+        $bookedCount = db()->prepare(
+            'SELECT COUNT(DISTINCT ScheduleTime)
+             FROM Appointment
              WHERE ScheduleDate = :date
-               AND Status <> :old_status'
+               AND AppointmentStatus <> :cancelled'
+        );
+        $bookedCount->execute([
+            'date' => $date,
+            'cancelled' => 'Cancelled',
+        ]);
+        $keptBooked = (int) $bookedCount->fetchColumn();
+
+        $statement = db()->prepare(
+            'UPDATE Schedule s
+             SET s.Status = :new_status
+             WHERE s.ScheduleDate = :date
+               AND s.Status <> :old_status
+               AND NOT EXISTS (
+                   SELECT 1
+                   FROM Appointment a
+                   WHERE a.ScheduleDate = s.ScheduleDate
+                     AND a.ScheduleTime = s.ScheduleTime
+                     AND a.AppointmentStatus <> :cancelled
+               )'
         );
         $statement->execute([
             'new_status' => 'Closed',
             'old_status' => 'Closed',
             'date' => $date,
+            'cancelled' => 'Cancelled',
         ]);
 
         return [
             'ok' => true,
             'date' => $date,
             'closed' => $statement->rowCount(),
+            'kept_booked' => $keptBooked,
         ];
     } catch (PDOException) {
         return [
@@ -218,13 +263,38 @@ function schedule_close_day(string $date): array
 }
 
 /**
- * Close one slot. Creates a Closed row if the time did not exist yet.
+ * Close one slot. Refuses if that time already has an active visit.
  *
  * @return array{ok: true, date: string, time: string, status: string}|array{ok: false, error: string, code: string}
  */
 function schedule_close_slot(string $date, string $time): array
 {
-    return schedule_set_slot_status($date, $time, 'Closed');
+    if (!appointment_date_looks_valid($date)) {
+        return [
+            'ok' => false,
+            'error' => 'Choose a valid date.',
+            'code' => 'validation',
+        ];
+    }
+
+    $timeValue = schedule_time_value($time);
+    if (!appointment_time_looks_valid($timeValue)) {
+        return [
+            'ok' => false,
+            'error' => 'Choose a valid time.',
+            'code' => 'validation',
+        ];
+    }
+
+    if (schedule_slot_has_active_booking($date, $timeValue)) {
+        return [
+            'ok' => false,
+            'error' => 'That time already has a visit. Cancel the visit first if you need to free the slot.',
+            'code' => 'slot_booked',
+        ];
+    }
+
+    return schedule_set_slot_status($date, $timeValue, 'Closed');
 }
 
 /**

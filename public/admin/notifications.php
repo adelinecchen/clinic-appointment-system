@@ -33,7 +33,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $templates = preview_message_templates();
 $notices = preview_notifications();
-$todayRows = admin_desk_appointments_for_date(admin_desk_today()->format('Y-m-d'));
 
 admin_page_start('Messages', 'notifications');
 ?>
@@ -41,7 +40,6 @@ admin_page_start('Messages', 'notifications');
         <div>
             <h1>Messages</h1>
         </div>
-        <p class="head-note">Edit local SMS templates used for booking, reminders, cancel, and reschedule. Sending happens from Appointments/Patients or the reminder cron. NotificationStatus means the provider accepted the request — not carrier delivery.</p>
     </header>
     <?php if ($saved): ?>
         <p class="desk-note">The templates are saved on this computer.</p>
@@ -52,36 +50,6 @@ admin_page_start('Messages', 'notifications');
     <?php if ($saveError): ?>
         <p class="login-error" role="alert">The templates could not be saved on this computer.</p>
     <?php endif; ?>
-
-    <section class="panel">
-        <h2>Today’s notification statuses</h2>
-        <?php if ($todayRows === []): ?>
-            <p class="muted">No appointments today.</p>
-        <?php else: ?>
-            <div class="table-wrap">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Time</th>
-                            <th>Patient</th>
-                            <th>Confirmation</th>
-                            <th>Notification</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($todayRows as $row): ?>
-                            <tr>
-                                <td><?php echo h($row['time']); ?></td>
-                                <td><?php echo h($row['patient']); ?></td>
-                                <td><?php echo h((string) $row['confirmation_status']); ?></td>
-                                <td><?php echo h(clinic_normalize_notification_status($row['notification_status'] !== null ? (string) $row['notification_status'] : null)); ?></td>
-                            </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
-            </div>
-        <?php endif; ?>
-    </section>
 
     <form method="post" class="stack">
         <?php echo csrf_field(); ?>

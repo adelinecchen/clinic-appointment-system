@@ -345,6 +345,179 @@ function admin_fill_cancelled_from_waitlist(int $cancelledAppointmentId, int $wa
 }
 
 /**
+ * Book a waitlist patient into a free open slot (including times freed by cancellation).
+ *
+ * @return array{ok: true, appointment: array}|array{ok: false, error: string, code: string}
+ */
+function admin_place_waitlist_into_open_slot(int $waitlistId, string $date, string $time): array
+{
+    $wait = waitlist_find_by_id($waitlistId);
+    if ($wait === null || !in_array($wait['Status'], ['Waiting', 'Held'], true)) {
+        return ['ok' => false, 'error' => 'Choose someone from the waitlist.', 'code' => 'validation'];
+    }
+
+    $pdo = db();
+    $started = false;
+    try {
+        if (!$pdo->inTransaction()) {
+            $pdo->beginTransaction();
+            $started = true;
+        }
+
+        $created = appointment_create(
+            (int) $wait['Patient_ID'],
+            $date,
+            $time,
+            (string) $wait['AppointmentType']
+        );
+        if (!$created['ok']) {
+            if ($started && $pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+
+            return $created;
+        }
+
+        $placed = waitlist_set_status($waitlistId, 'Placed');
+        if (!$placed['ok']) {
+            if ($started && $pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+
+            return $placed;
+        }
+
+        if ($started) {
+            $pdo->commit();
+        }
+
+        return $created;
+    } catch (PDOException) {
+        if ($started && $pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+
+        return ['ok' => false, 'error' => 'That waitlist placement could not be saved.', 'code' => 'db'];
+    }
+}
+
+/**
+ * Placeable times for waitlist booking:
+ * - open: free schedule slots (cancelled visits free these for booking)
+ * - hold: active visits that are not confirmed yet
+ *
+ * @return array{
+ *   days: list<array{value: string, label: string, full: string}>,
+ *   slots: array<string, list<array{value: string, label: string}>>
+ * }
+ */
+function admin_waitlist_placeable_options(): array
+{
+    $start = admin_desk_today()->format('Y-m-d');
+    $end = admin_desk_today()->modify('+6 months')->format('Y-m-d');
+    $slotsByDate = [];
+
+    foreach (schedule_open_slots_for_patient_range($start, $end) as $slot) {
+        $date = (string) $slot['date'];
+        $time = schedule_time_value((string) $slot['time']);
+        $slotsByDate[$date][] = [
+            'value' => 'open|' . $time,
+            'label' => $slot['label'] . ' · Open slot',
+            'sort' => $time,
+        ];
+    }
+
+    foreach (admin_upcoming_appointments() as $appointment) {
+        if (!in_array((string) $appointment['status'], ['no_reply', 'reminder_sent'], true)) {
+            continue;
+        }
+        if ((string) ($appointment['confirmation_status'] ?? '') === 'Confirmed') {
+            continue;
+        }
+
+        $date = (string) $appointment['date'];
+        $time = schedule_time_value((string) $appointment['time_value']);
+        $slotsByDate[$date][] = [
+            'value' => 'hold|' . (string) $appointment['id'],
+            'label' => $appointment['time'] . ' · Hold for ' . $appointment['patient'] . ' (not confirmed)',
+            'sort' => $time,
+        ];
+    }
+
+    ksort($slotsByDate);
+    $days = [];
+    $cleanSlots = [];
+    foreach ($slotsByDate as $date => $options) {
+        usort($options, static fn (array $a, array $b): int => strcmp((string) $a['sort'], (string) $b['sort']));
+        $clean = [];
+        foreach ($options as $option) {
+            $clean[] = [
+                'value' => (string) $option['value'],
+                'label' => (string) $option['label'],
+            ];
+        }
+        if ($clean === []) {
+            continue;
+        }
+        $cleanSlots[$date] = $clean;
+        $day = patient_booking_day_record($date);
+        $days[] = [
+            'value' => $date,
+            'label' => (string) ($day['label'] ?? $date),
+            'full' => (string) ($day['full'] ?? $date),
+        ];
+    }
+
+    return [
+        'days' => $days,
+        'slots' => $cleanSlots,
+    ];
+}
+
+/**
+ * Apply a waitlist placement choice from the waitlist desk.
+ * placement is "open|HH:MM[:SS]" or "hold|Appointment_ID".
+ *
+ * @return array{ok: true, appointment: array, mode: string}|array{ok: false, error: string, code: string}
+ */
+function admin_waitlist_place(int $waitlistId, string $date, string $placement): array
+{
+    $parts = explode('|', $placement, 2);
+    if (count($parts) !== 2) {
+        return ['ok' => false, 'error' => 'Choose a time to place this person.', 'code' => 'validation'];
+    }
+
+    [$mode, $target] = $parts;
+    if ($mode === 'open') {
+        $result = admin_place_waitlist_into_open_slot($waitlistId, $date, $target);
+        if (!$result['ok']) {
+            return $result;
+        }
+
+        return [
+            'ok' => true,
+            'appointment' => $result['appointment'],
+            'mode' => 'open',
+        ];
+    }
+
+    if ($mode === 'hold') {
+        $result = admin_double_book_from_waitlist((int) $target, $waitlistId);
+        if (!$result['ok']) {
+            return $result;
+        }
+
+        return [
+            'ok' => true,
+            'appointment' => $result['appointment'],
+            'mode' => 'hold',
+        ];
+    }
+
+    return ['ok' => false, 'error' => 'Choose a time to place this person.', 'code' => 'validation'];
+}
+
+/**
  * Admin reminder template text (not sent externally).
  */
 function admin_reminder_preview_text(array $uiRow): string

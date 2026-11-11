@@ -140,16 +140,14 @@ admin_page_start('Appointments', 'dashboard');
                     <p class="visit-time"><?php echo h($appointment['time']); ?></p>
                     <div class="visit-person">
                         <h2><?php echo h($appointment['patient']); ?></h2>
-                        <p><?php echo h($appointment['visit'] . ', ' . $appointment['phone']); ?></p>
+                        <p><?php echo h($appointment['visit'] . ', ' . patient_format_phone($appointment['phone'])); ?></p>
                         <?php if ($appointment['note'] !== ''): ?>
                             <p class="row-note<?php echo $appointment['status'] === 'cancelled' ? ' is-cancel' : ''; ?>"><?php echo h($appointment['note']); ?></p>
                         <?php endif; ?>
                     </div>
                     <div class="visit-actions">
                         <?php admin_status($appointment['status'], $appointment['status_label']); ?>
-                        <?php if ($appointment['status'] === 'confirmed'): ?>
-                            <a class="btn btn-line" href="notifications.php">Message templates</a>
-                        <?php elseif ($appointment['status'] === 'no_reply'): ?>
+                        <?php if ($appointment['status'] === 'no_reply'): ?>
                             <form method="post">
                                 <?php echo csrf_field(); ?>
                                 <input type="hidden" name="action" value="remind">

@@ -61,7 +61,6 @@ admin_page_start('Staff', 'staff');
         <div>
             <h1>Staff</h1>
         </div>
-        <p class="head-note">Create and manage desk accounts. Everyone signs in with email. Only super admins can change roles or delete accounts.</p>
     </header>
     <?php if ($notice !== ''): ?>
         <p class="desk-note"><?php echo h($notice); ?></p>
@@ -89,7 +88,7 @@ admin_page_start('Staff', 'staff');
                             <tr>
                                 <td>
                                     <?php echo h((string) $account['name']); ?>
-                                    <div class="muted"><?php echo h((string) $account['phone']); ?></div>
+                                    <div class="muted"><?php echo h(patient_format_phone((string) $account['phone'])); ?></div>
                                 </td>
                                 <td><?php echo h((string) $account['email']); ?></td>
                                 <td><?php echo h(staff_role_label((string) $account['role'])); ?></td>
@@ -99,7 +98,7 @@ admin_page_start('Staff', 'staff');
                                         <?php echo csrf_field(); ?>
                                         <input type="hidden" name="action" value="delete">
                                         <input type="hidden" name="id" value="<?php echo h((string) $account['id']); ?>">
-                                        <button class="btn btn-line" type="submit">Delete</button>
+                                        <button class="btn btn-remove" type="submit">Delete</button>
                                     </form>
                                 </td>
                             </tr>
@@ -118,7 +117,7 @@ admin_page_start('Staff', 'staff');
                         <input type="hidden" name="action" value="update">
                         <input type="hidden" name="id" value="<?php echo h((string) $editing['id']); ?>">
                         <label>Name <input name="name" required maxlength="50" value="<?php echo h((string) $editing['name']); ?>"></label>
-                        <label>Phone <input name="phone" required maxlength="15" value="<?php echo h((string) $editing['phone']); ?>"></label>
+                        <label>Phone <input name="phone" type="tel" inputmode="tel" required maxlength="14" placeholder="(757) 555-0142" value="<?php echo h(patient_format_phone((string) $editing['phone'])); ?>"></label>
                         <label>Email <input name="email" type="email" required maxlength="80" value="<?php echo h((string) $editing['email']); ?>"></label>
                         <label>Role
                             <select name="role">
@@ -140,7 +139,7 @@ admin_page_start('Staff', 'staff');
                     <?php echo csrf_field(); ?>
                     <input type="hidden" name="action" value="create">
                     <label>Name <input name="name" required maxlength="50"></label>
-                    <label>Phone <input name="phone" required maxlength="15" placeholder="5550101234"></label>
+                    <label>Phone <input name="phone" type="tel" inputmode="tel" required maxlength="14" placeholder="(757) 555-0142"></label>
                     <label>Email <input name="email" type="email" required maxlength="80"></label>
                     <label>Password <input name="password" type="password" required minlength="8" autocomplete="new-password"></label>
                     <label>Role

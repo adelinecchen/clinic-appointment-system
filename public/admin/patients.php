@@ -193,15 +193,18 @@ admin_page_start('Patients', 'patients');
                 <?php foreach ($visits as $appointment): ?>
                     <article class="visit-row visit-manage">
                         <p class="visit-time"><?php echo h($appointment['time']); ?></p>
+                        <div class="visit-status">
+                            <?php admin_status($appointment['status'], $appointment['status_label']); ?>
+                        </div>
+                        <div class="visit-main">
                         <div class="visit-person">
                             <h2><?php echo h($appointment['patient']); ?></h2>
-                            <p><?php echo h($appointment['visit'] . ' · ' . $appointment['phone']); ?></p>
+                            <p><?php echo h($appointment['visit'] . ' · ' . patient_format_phone($appointment['phone'])); ?></p>
                             <?php if ($appointment['note'] !== ''): ?>
                                 <p class="row-note<?php echo $appointment['status'] === 'cancelled' ? ' is-cancel' : ''; ?>"><?php echo h($appointment['note']); ?></p>
                             <?php endif; ?>
                         </div>
                         <div class="visit-actions">
-                            <?php admin_status($appointment['status'], $appointment['status_label']); ?>
                             <?php if ($appointment['status'] === 'cancelled'): ?>
                                 <form method="post">
                                     <?php echo csrf_field(); ?>
@@ -295,6 +298,7 @@ admin_page_start('Patients', 'patients');
                                     <button class="btn btn-line" type="submit">Cancel visit</button>
                                 </form>
                             <?php endif; ?>
+                        </div>
                         </div>
                     </article>
                 <?php endforeach; ?>

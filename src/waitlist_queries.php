@@ -145,10 +145,12 @@ function waitlist_desk_entries(): array
         $entries[] = [
             'id' => (string) $row['Waitlist_ID'],
             'name' => $row['PatientName'],
-            'phone' => $row['PatientPhone'],
+            'phone' => patient_format_phone($row['PatientPhone']),
             'phone_digits' => patient_phone_digits($row['PatientPhone']),
             'visit' => $row['AppointmentTypeLabel'],
-            'note' => $row['Status'] === 'Held' ? 'Holding a time until confirmation.' : 'Waiting for an open block.',
+            'note' => $row['Status'] === 'Held'
+                ? 'Holding an unconfirmed time until that patient confirms.'
+                : 'Waiting for an open slot or an unconfirmed visit.',
             'patient_id' => $row['Patient_ID'],
             'type' => $row['AppointmentType'],
             'status' => $row['Status'],

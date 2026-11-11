@@ -160,11 +160,7 @@ function patient_booking_defaults(): array
 
 function patient_booking_format_phone(string $digits): string
 {
-    if (strlen($digits) !== 10) {
-        return $digits;
-    }
-
-    return sprintf('(%s) %s-%s', substr($digits, 0, 3), substr($digits, 3, 3), substr($digits, 6, 4));
+    return patient_format_phone($digits);
 }
 
 /**

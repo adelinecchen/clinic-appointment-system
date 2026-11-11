@@ -46,6 +46,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } else {
                 $actionError = (string) $result['error'];
             }
+        } elseif ($action === 'place') {
+            $id = (int) ($_POST['waitlist_id'] ?? 0);
+            $date = (string) ($_POST['date'] ?? '');
+            $placement = (string) ($_POST['placement'] ?? '');
+            $result = admin_waitlist_place($id, $date, $placement);
+            if ($result['ok']) {
+                $notice = ($result['mode'] ?? '') === 'hold'
+                    ? 'Holding that unconfirmed time for this waitlist patient.'
+                    : 'Booked them into that open time.';
+            } else {
+                $actionError = (string) ($result['error'] ?? 'Could not place that person.');
+            }
         }
     }
 
@@ -63,6 +75,10 @@ if ($notice === '' && isset($_SESSION['waitlist_notice']) && is_string($_SESSION
 
 admin_page_start('Waitlist', 'waitlist');
 $people = waitlist_desk_entries();
+$placeable = admin_waitlist_placeable_options();
+$placeDays = $placeable['days'];
+$placeSlots = $placeable['slots'];
+$hasPlaceable = $placeDays !== [];
 ?>
     <header class="page-head">
         <div>
@@ -88,7 +104,7 @@ $people = waitlist_desk_entries();
                 </label>
                 <label>
                     Phone
-                    <input type="tel" name="phone" maxlength="15" required>
+                    <input type="tel" name="phone" inputmode="tel" maxlength="14" required placeholder="(757) 555-0142">
                 </label>
                 <label>
                     Visit type
@@ -104,7 +120,7 @@ $people = waitlist_desk_entries();
 
     <?php if ($people === []): ?>
         <section class="panel">
-            <p>No one is waiting right now. Open appointments to place someone when a block opens.</p>
+            <p>No one is waiting right now. When someone cancels, or a visit stays unconfirmed, place the next person from here.</p>
         </section>
     <?php else: ?>
         <section class="stack">
@@ -115,18 +131,58 @@ $people = waitlist_desk_entries();
                         <p><?php echo h($entry['phone']); ?> · <?php echo h($entry['visit']); ?></p>
                     </div>
                     <p><?php echo h($entry['note']); ?></p>
-                    <div class="visit-actions">
-                        <a class="btn btn-line" href="index.php">Place in an open block</a>
-                        <form method="post">
+                    <div class="wait-actions">
+                        <?php if ($entry['status'] === 'Held'): ?>
+                            <p class="muted wait-actions-note">Already holding an unconfirmed time.</p>
+                        <?php elseif ($hasPlaceable): ?>
+                            <details class="wait-place">
+                                <summary>Place into a time</summary>
+                                <form method="post" class="wait-place-form" data-waitlist-place>
+                                    <?php echo csrf_field(); ?>
+                                    <input type="hidden" name="action" value="place">
+                                    <input type="hidden" name="waitlist_id" value="<?php echo h($entry['id']); ?>">
+                                    <p>Pick a day, then a time. <strong>Open slot</strong> books them into a free time (including cancellations). <strong>Hold</strong> double-books them onto a visit that has not confirmed yet.</p>
+                                    <label>
+                                        Day
+                                        <select name="date" required>
+                                            <?php foreach ($placeDays as $dayOption): ?>
+                                                <option value="<?php echo h($dayOption['value']); ?>">
+                                                    <?php echo h($dayOption['full']); ?>
+                                                </option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                    </label>
+                                    <label>
+                                        Time
+                                        <select name="placement" required>
+                                            <?php
+                                            $firstDate = (string) $placeDays[0]['value'];
+                                            foreach ($placeSlots[$firstDate] ?? [] as $slotOption):
+                                            ?>
+                                                <option value="<?php echo h($slotOption['value']); ?>">
+                                                    <?php echo h($slotOption['label']); ?>
+                                                </option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                    </label>
+                                    <button class="btn btn-solid" type="submit">Place this person</button>
+                                </form>
+                            </details>
+                        <?php else: ?>
+                            <p class="muted wait-actions-note">No open or unconfirmed times right now.</p>
+                        <?php endif; ?>
+                        <form method="post" class="wait-remove">
                             <?php echo csrf_field(); ?>
                             <input type="hidden" name="action" value="remove">
                             <input type="hidden" name="waitlist_id" value="<?php echo h($entry['id']); ?>">
-                            <button class="btn btn-line" type="submit">Remove</button>
+                            <button class="btn btn-remove" type="submit">Remove</button>
                         </form>
                     </div>
                 </article>
             <?php endforeach; ?>
         </section>
+        <script type="application/json" id="waitlist-slots"><?php echo json_encode($placeSlots, JSON_UNESCAPED_SLASHES); ?></script>
+        <script src="../assets/js/waitlist.js"></script>
     <?php endif; ?>
 <?php
 admin_page_end();

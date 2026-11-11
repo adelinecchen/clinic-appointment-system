@@ -14,6 +14,7 @@ $draftHours = null;
 $postedDate = '';
 $postedMonth = '';
 $actionError = '';
+$notice = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!csrf_verify_request()) {
@@ -66,15 +67,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif ($action === 'close_date' && admin_date_is_choosable($date)) {
             $result = schedule_close_day($date);
             if (!$result['ok']) {
-                $saveError = true;
+                $actionError = (string) ($result['error'] ?? 'The schedule day could not be closed.');
             } else {
+                $kept = (int) ($result['kept_booked'] ?? 0);
+                $_SESSION['availability_notice'] = $kept > 0
+                    ? ('Closed open times for booking. Left ' . $kept . ' booked visit' . ($kept === 1 ? '' : 's') . ' alone.')
+                    : 'Closed this day. Patients cannot book any times here.';
                 header('Location: ' . $back);
                 exit;
             }
         } elseif ($action === 'close_slot' && admin_date_is_choosable($date)) {
             $result = schedule_close_slot($date, $time);
             if (!$result['ok']) {
-                $saveError = true;
+                $actionError = (string) ($result['error'] ?? 'That time could not be blocked.');
             } else {
                 header('Location: ' . $back);
                 exit;
@@ -82,7 +87,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif ($action === 'open_slot' && admin_date_is_choosable($date)) {
             $result = schedule_open_slot($date, $time);
             if (!$result['ok']) {
-                $saveError = true;
+                $actionError = (string) ($result['error'] ?? 'That time could not be opened.');
             } else {
                 header('Location: ' . $back);
                 exit;
@@ -106,6 +111,11 @@ if ($month === false || $month->format('Y-m') < $firstAllowed->format('Y-m') || 
     $month = $selected !== ''
         ? new DateTimeImmutable(substr($selected, 0, 7) . '-01')
         : $firstAllowed;
+}
+
+if ($notice === '' && isset($_SESSION['availability_notice']) && is_string($_SESSION['availability_notice'])) {
+    $notice = $_SESSION['availability_notice'];
+    unset($_SESSION['availability_notice']);
 }
 
 $openValues = array_column(admin_schedule_open_dates(), 'value');
@@ -171,6 +181,9 @@ admin_page_start('Availability', 'availability');
             <h1>Availability</h1>
         </div>
     </header>
+    <?php if ($notice !== ''): ?>
+        <p class="desk-note"><?php echo h($notice); ?></p>
+    <?php endif; ?>
     <?php if ($actionError !== ''): ?>
         <p class="login-error" role="alert"><?php echo h($actionError); ?></p>
     <?php elseif ($saveError): ?>
@@ -240,28 +253,29 @@ admin_page_start('Availability', 'availability');
                 <p class="muted">Patients cannot book this day yet. Set when you open and close, and how long each visit is.</p>
                 <?php availability_hours_fields($selectedHours, 'open_date', $selected, $monthKey, 'Open this day'); ?>
             <?php else: ?>
-                <p class="muted"><?php echo h(ucfirst(preview_hours_summary($selectedHours))); ?>. Block a time if you need to hold it. Closing a booked slot keeps the existing visit.</p>
-                <?php availability_hours_fields($selectedHours, $selectedIsOpen ? 'update_hours' : 'open_date', $selected, $monthKey, $selectedIsOpen ? 'Save hours' : 'Open this day'); ?>
+                <p class="muted"><?php echo h(ucfirst(preview_hours_summary($selectedHours))); ?>. Click an open time to block it from new bookings. Booked times stay booked and cannot be blocked. Close this day blocks only free times. Set open hours rebuilds this day’s open slots from the times above.</p>
+                <?php availability_hours_fields($selectedHours, $selectedIsOpen ? 'update_hours' : 'open_date', $selected, $monthKey, $selectedIsOpen ? 'Set open hours' : 'Open this day'); ?>
                 <?php if ($selectedIsOpen || $daySlots !== []): ?>
                     <div class="slot-grid">
                         <?php foreach (admin_schedule_visit_slots($selected) as $slot): ?>
-                            <form method="post">
-                                <?php echo csrf_field(); ?>
-                                <input type="hidden" name="date" value="<?php echo h($selected); ?>">
-                                <input type="hidden" name="month" value="<?php echo h($monthKey); ?>">
-                                <input type="hidden" name="time" value="<?php echo h($slot['value']); ?>">
-                                <input type="hidden" name="action" value="<?php echo $slot['available'] ? 'close_slot' : 'open_slot'; ?>">
-                                <button class="slot-toggle<?php echo $slot['available'] ? '' : ' is-blocked'; ?>" type="submit">
+                            <?php if ($slot['booked']): ?>
+                                <div class="slot-toggle is-booked" aria-disabled="true">
                                     <span><?php echo h($slot['label']); ?></span>
-                                    <small><?php
-                                        if ($slot['booked']) {
-                                            echo $slot['available'] ? 'Open · booked' : 'Blocked · booked';
-                                        } else {
-                                            echo $slot['available'] ? 'Open' : 'Blocked';
-                                        }
-                                    ?></small>
-                                </button>
-                            </form>
+                                    <small>Booked</small>
+                                </div>
+                            <?php else: ?>
+                                <form method="post">
+                                    <?php echo csrf_field(); ?>
+                                    <input type="hidden" name="date" value="<?php echo h($selected); ?>">
+                                    <input type="hidden" name="month" value="<?php echo h($monthKey); ?>">
+                                    <input type="hidden" name="time" value="<?php echo h($slot['value']); ?>">
+                                    <input type="hidden" name="action" value="<?php echo $slot['available'] ? 'close_slot' : 'open_slot'; ?>">
+                                    <button class="slot-toggle<?php echo $slot['available'] ? '' : ' is-blocked'; ?>" type="submit">
+                                        <span><?php echo h($slot['label']); ?></span>
+                                        <small><?php echo $slot['available'] ? 'Open' : 'Blocked'; ?></small>
+                                    </button>
+                                </form>
+                            <?php endif; ?>
                         <?php endforeach; ?>
                     </div>
                     <form method="post" class="cal-action">

@@ -42,9 +42,9 @@ function admin_page_start(string $title, string $active): void
     $items = [
         'dashboard' => ['Appointments', 'index.php'],
         'patients' => ['Patients', 'patients.php'],
-        'notifications' => ['Messages', 'notifications.php'],
         'waitlist' => ['Waitlist', 'waitlist.php'],
         'availability' => ['Availability', 'availability.php'],
+        'notifications' => ['Messages', 'notifications.php'],
     ];
     if (staff_is_super()) {
         $items['staff'] = ['Staff', 'staff.php'];
@@ -103,6 +103,7 @@ function admin_page_end(): void
             </main>
         </div>
     </div>
+    <script src="../assets/js/phone.js"></script>
 </body>
 </html>
     <?php
