@@ -147,7 +147,6 @@ admin_page_start('Patients', 'patients');
         <div>
             <h1>Upcoming visits</h1>
         </div>
-        <p class="head-note">When someone calls the desk, find the visit by name or phone. You can cancel it, change the time, mark a reminder, or intentionally hold an unconfirmed block for a waitlist patient.</p>
     </header>
     <?php if ($notice !== ''): ?>
         <p class="desk-note"><?php echo h($notice); ?></p>

@@ -170,7 +170,6 @@ admin_page_start('Availability', 'availability');
         <div>
             <h1>Availability</h1>
         </div>
-        <p class="head-note">Open a day, set the hours, and choose how long each visit is. Times are stored in the clinic schedule database.</p>
     </header>
     <?php if ($actionError !== ''): ?>
         <p class="login-error" role="alert"><?php echo h($actionError); ?></p>
@@ -244,13 +243,6 @@ admin_page_start('Availability', 'availability');
                 <p class="muted"><?php echo h(ucfirst(preview_hours_summary($selectedHours))); ?>. Block a time if you need to hold it. Closing a booked slot keeps the existing visit.</p>
                 <?php availability_hours_fields($selectedHours, $selectedIsOpen ? 'update_hours' : 'open_date', $selected, $monthKey, $selectedIsOpen ? 'Save hours' : 'Open this day'); ?>
                 <?php if ($selectedIsOpen || $daySlots !== []): ?>
-                    <form method="post" class="cal-action">
-                        <?php echo csrf_field(); ?>
-                        <input type="hidden" name="action" value="close_date">
-                        <input type="hidden" name="date" value="<?php echo h($selected); ?>">
-                        <input type="hidden" name="month" value="<?php echo h($monthKey); ?>">
-                        <button class="btn btn-line" type="submit">Close this day</button>
-                    </form>
                     <div class="slot-grid">
                         <?php foreach (admin_schedule_visit_slots($selected) as $slot): ?>
                             <form method="post">
@@ -272,6 +264,13 @@ admin_page_start('Availability', 'availability');
                             </form>
                         <?php endforeach; ?>
                     </div>
+                    <form method="post" class="cal-action">
+                        <?php echo csrf_field(); ?>
+                        <input type="hidden" name="action" value="close_date">
+                        <input type="hidden" name="date" value="<?php echo h($selected); ?>">
+                        <input type="hidden" name="month" value="<?php echo h($monthKey); ?>">
+                        <button class="btn btn-close-day" type="submit">Close this day</button>
+                    </form>
                 <?php endif; ?>
             <?php endif; ?>
         </section>

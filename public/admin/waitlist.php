@@ -68,7 +68,6 @@ $people = waitlist_desk_entries();
         <div>
             <h1>Waitlist</h1>
         </div>
-        <p class="head-note">When someone cancels, give that block to one person here from Appointments. Holding an unconfirmed time creates an intentional double-book.</p>
     </header>
     <?php if ($notice !== ''): ?>
         <p class="desk-note"><?php echo h($notice); ?></p>
