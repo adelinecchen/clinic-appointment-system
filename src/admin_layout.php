@@ -27,9 +27,9 @@ function admin_page_start(string $title, string $active): void
     admin_require_login();
 
     $clinic = preview_clinic();
-    $today = admin_desk_today()->format('Y-m-d');
+    $deskDate = admin_desk_focus_date()->format('Y-m-d');
     $todayUnconfirmed = count(array_filter(
-        admin_desk_appointments_for_date($today),
+        admin_desk_appointments_for_date($deskDate),
         static fn (array $row): bool => in_array($row['status'], ['no_reply', 'reminder_sent'], true)
     ));
     $upcomingUnconfirmed = admin_upcoming_counts(admin_upcoming_appointments())['unconfirmed'];

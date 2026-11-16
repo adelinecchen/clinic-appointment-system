@@ -1,8 +1,10 @@
 # Clinic Appointment System
 
-Privacy-conscious appointment scheduling for a community health clinic. Patients request visits on a public website. Clinic staff use a separate desk to review the schedule. The screens below are a preview with fictional sample data. Patient booking and the staff desk still use that preview content. They do not read or write clinic tables yet, and no messages are sent.
+Privacy-conscious appointment scheduling for a community health clinic. Patients request visits on a public website. Clinic staff use a separate desk to review the schedule.
 
 The browser never talks to MySQL directly. Pages and API scripts in `public/` call PHP in `src/`. `src/db.php` is the only file that opens a PDO connection, using values from `.env`.
+
+**For Cursor agents (and anyone continuing the build):** see the [`docs/`](docs/README.md) folder — start with [`docs/AGENTS.md`](docs/AGENTS.md), then [`docs/ROADMAP.md`](docs/ROADMAP.md) and [`docs/DECISIONS.md`](docs/DECISIONS.md). This README stays focused on how to run the app locally.
 
 ## Layout
 

@@ -18,6 +18,42 @@ function admin_desk_today(): DateTimeImmutable
 }
 
 /**
+ * Day the appointments desk focuses on: today when the clinic is open,
+ * otherwise the next date with Open schedule rows (Sunday-only clinics).
+ */
+function admin_desk_focus_date(): DateTimeImmutable
+{
+    $today = admin_desk_today();
+    $todayKey = $today->format('Y-m-d');
+
+    $todayOpen = db()->prepare(
+        "SELECT 1
+         FROM Schedule
+         WHERE ScheduleDate = :date
+           AND Status = 'Open'
+         LIMIT 1"
+    );
+    $todayOpen->execute(['date' => $todayKey]);
+    if ($todayOpen->fetchColumn() !== false) {
+        return $today;
+    }
+
+    $nextOpen = db()->prepare(
+        "SELECT MIN(ScheduleDate)
+         FROM Schedule
+         WHERE ScheduleDate >= :date
+           AND Status = 'Open'"
+    );
+    $nextOpen->execute(['date' => $todayKey]);
+    $value = $nextOpen->fetchColumn();
+    if (is_string($value) && $value !== '') {
+        return new DateTimeImmutable($value, $today->getTimezone());
+    }
+
+    return $today;
+}
+
+/**
  * @param array<string, mixed> $row from admin_appointments_for_date
  * @return array<string, mixed> shape expected by admin templates
  */

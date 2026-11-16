@@ -10,7 +10,8 @@ require_once __DIR__ . '/../../src/admin_layout.php';
 
 csrf_ensure_session();
 
-$deskDate = admin_desk_today()->format('Y-m-d');
+$deskDay = admin_desk_focus_date();
+$deskDate = $deskDay->format('Y-m-d');
 $notice = '';
 $actionError = '';
 
@@ -111,7 +112,7 @@ foreach ($unconfirmed as $appointment) {
 admin_page_start('Appointments', 'dashboard');
 ?>
     <header class="day-head">
-        <h1><?php echo h(admin_desk_today()->format('l, F j')); ?></h1>
+        <h1><?php echo h($deskDay->format('l, F j')); ?></h1>
         <a class="btn btn-solid" href="../index.php">+ Add appointment</a>
     </header>
     <?php if ($notice !== ''): ?>

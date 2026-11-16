@@ -14,6 +14,7 @@ declare(strict_types=1);
  */
 
 require_once __DIR__ . '/../../src/bootstrap.php';
+require_once __DIR__ . '/../../src/preview_data.php';
 require_once __DIR__ . '/../../src/sms.php';
 require_once __DIR__ . '/../../src/sms_consent.php';
 
@@ -69,7 +70,7 @@ $from = (string) ($_POST['From'] ?? '');
 $body = strtoupper(trim((string) ($_POST['Body'] ?? '')));
 $messageStatus = strtolower((string) ($_POST['MessageStatus'] ?? ''));
 
-// Keyword opt-out / opt-in (TCPA / carrier expectation).
+// Keyword opt-out / opt-in / help (TCPA / carrier expectation).
 if ($from !== '' && $body !== '') {
     $keyword = preg_replace('/\s+/', ' ', $body) ?? $body;
     if (in_array($keyword, ['STOP', 'STOPALL', 'UNSUBSCRIBE', 'CANCEL', 'END', 'QUIT'], true)) {
@@ -77,9 +78,15 @@ if ($from !== '' && $body !== '') {
         echo 'You are opted out of clinic texts. Reply START to opt in again.';
         exit;
     }
-    if (in_array($keyword, ['START', 'UNSTOP', 'YES'], true)) {
+    if (in_array($keyword, ['START', 'UNSTOP'], true)) {
         sms_clear_opt_out($from, 'keyword');
-        echo 'You are opted in to clinic appointment texts. Reply STOP to opt out.';
+        echo 'You are opted in to clinic appointment texts. Reply STOP to opt out; HELP for more info.';
+        exit;
+    }
+    if (in_array($keyword, ['HELP', 'INFO'], true)) {
+        $clinic = preview_clinic();
+        $name = $clinic['short'] !== '' ? $clinic['short'] : $clinic['name'];
+        echo $name . ' help: call ' . $clinic['phone'] . '. Reply STOP to opt out.';
         exit;
     }
 }

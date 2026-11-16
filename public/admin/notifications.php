@@ -17,12 +17,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!csrf_verify_request()) {
         $csrfError = true;
     } else {
-        $templates = [
-            'booking' => (string) ($_POST['booking'] ?? ''),
-            'two_day' => (string) ($_POST['two_day'] ?? ''),
-            'one_day' => (string) ($_POST['one_day'] ?? ''),
-            'follow_up' => (string) ($_POST['follow_up'] ?? ''),
-        ];
+        $templates = [];
+        foreach (array_keys(preview_message_defaults()) as $key) {
+            $templates[$key] = (string) ($_POST[$key] ?? '');
+        }
         if (preview_save_message_templates($templates)) {
             $saved = true;
         } else {
@@ -33,12 +31,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $templates = preview_message_templates();
 $notices = preview_notifications();
+$clinic = preview_clinic();
 
 admin_page_start('Messages', 'notifications');
 ?>
     <header class="page-head">
         <div>
             <h1>Messages</h1>
+            <p class="head-note">Standard appointment texts after a patient opts in. Every template should keep clinic identity, visit details, and end with: Reply STOP to opt out; HELP for more info. HELP replies with the clinic phone (<?php echo h($clinic['phone']); ?>).</p>
         </div>
     </header>
     <?php if ($saved): ?>
@@ -57,11 +57,13 @@ admin_page_start('Messages', 'notifications');
             <article class="panel notice">
                 <header>
                     <h2><?php echo h($notice['title']); ?></h2>
-                    <p><?php echo h($notice['when']); ?> Template only — not sent from this page.</p>
+                    <p><?php echo h($notice['when']); ?></p>
+                    <p class="muted">Should include: <?php echo h($notice['includes']); ?></p>
                 </header>
                 <label class="sr-only" for="msg-<?php echo h($notice['key']); ?>">Message</label>
-                <textarea id="msg-<?php echo h($notice['key']); ?>" name="<?php echo h($notice['key']); ?>" rows="4" required><?php echo h($templates[$notice['key']]); ?></textarea>
+                <textarea id="msg-<?php echo h($notice['key']); ?>" name="<?php echo h($notice['key']); ?>" rows="5" required><?php echo h($templates[$notice['key']]); ?></textarea>
                 <p class="muted">Preview: <?php echo h($notice['message']); ?></p>
+                <p class="muted">Placeholders: {clinic} {name} {date} {time} {clinic_phone}</p>
             </article>
         <?php endforeach; ?>
         <button class="btn btn-solid" type="submit">Save texts</button>

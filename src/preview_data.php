@@ -424,13 +424,15 @@ function preview_message_path(): string
 
 function preview_message_defaults(): array
 {
+    $footer = 'Msg & data rates may apply. Reply STOP to opt out; HELP for more info.';
+
     return [
-        'booking' => 'Hi {name}, this is {clinic}. We booked your visit on {date} at {time}. Reply STOP to opt out of texts.',
-        'two_day' => 'Hi {name}, this is {clinic}. Please confirm your visit on {date} at {time}. Reply YES or NO. Reply STOP to opt out.',
-        'one_day' => 'Hi {name}, this is {clinic}. Reminder: your visit is tomorrow at {time}. Reply YES to confirm, or STOP to opt out.',
-        'follow_up' => 'Hi {name}, this is {clinic}. Please confirm your visit on {date} at {time}. Reply YES or NO. Reply STOP to opt out.',
-        'cancel' => 'Hi {name}, this is {clinic}. Your visit on {date} at {time} was cancelled. Reply STOP to opt out of texts.',
-        'reschedule' => 'Hi {name}, this is {clinic}. Your visit was moved to {date} at {time}. Reply STOP to opt out of texts.',
+        'booking' => '{clinic}: Hi {name}, your visit is booked for {date} at {time}. We may text reminders about this visit. ' . $footer,
+        'two_day' => '{clinic}: Hi {name}, please confirm your visit on {date} at {time}. Reply YES to confirm or NO to cancel. ' . $footer,
+        'one_day' => '{clinic}: Hi {name}, reminder — your visit is tomorrow, {date} at {time}. Reply YES to confirm you are coming. ' . $footer,
+        'follow_up' => '{clinic}: Hi {name}, we still need you to confirm your visit on {date} at {time}. Reply YES or NO. ' . $footer,
+        'cancel' => '{clinic}: Hi {name}, your visit on {date} at {time} was cancelled. Book again anytime if you need a new time. ' . $footer,
+        'reschedule' => '{clinic}: Hi {name}, your visit was moved to {date} at {time}. Reply YES to confirm the new time. ' . $footer,
     ];
 }
 
@@ -490,7 +492,9 @@ function preview_fill_message(string $template, array $vars): string
 {
     $clinic = preview_clinic();
     $replacements = [
-        '{clinic}' => $clinic['name'],
+        '{clinic}' => $clinic['short'] !== '' ? $clinic['short'] : $clinic['name'],
+        '{clinic_name}' => $clinic['name'],
+        '{clinic_phone}' => $clinic['phone'],
         '{name}' => (string) ($vars['name'] ?? 'Sarah Smith'),
         '{date}' => (string) ($vars['date'] ?? 'October 25, 2026'),
         '{time}' => (string) ($vars['time'] ?? '9:00 AM'),
@@ -1133,42 +1137,49 @@ function preview_notifications(): array
         'phone' => '(757) 555-1234',
     ];
 
-    return [
+    $cards = [
         [
             'key' => 'booking',
             'title' => 'Booking confirmation',
-            'when' => 'Sent when the visit is booked',
-            'message' => preview_fill_message($templates['booking'], $sample),
+            'when' => 'Sent right after a visit is booked (when the patient opted in to texts).',
+            'includes' => 'Clinic name, patient name, date, time, reminder notice, rates, STOP/HELP.',
         ],
         [
             'key' => 'two_day',
             'title' => '2-day reminder',
-            'when' => 'Two days before the visit',
-            'message' => preview_fill_message($templates['two_day'], $sample),
+            'when' => 'Sent two days before the visit to ask for confirmation.',
+            'includes' => 'Clinic name, patient name, date, time, YES/NO reply, rates, STOP/HELP.',
         ],
         [
             'key' => 'one_day',
             'title' => '1-day reminder',
-            'when' => 'One day before if there is no reply',
-            'message' => preview_fill_message($templates['one_day'], $sample),
+            'when' => 'Sent one day before if the visit is still unconfirmed.',
+            'includes' => 'Clinic name, patient name, date, time, YES confirm, rates, STOP/HELP.',
         ],
         [
             'key' => 'follow_up',
             'title' => 'Desk reminder',
-            'when' => 'From the desk when someone has not confirmed',
-            'message' => preview_fill_message($templates['follow_up'], $sample),
+            'when' => 'Sent from Appointments/Patients when staff mark a reminder for an unconfirmed visit.',
+            'includes' => 'Clinic name, patient name, date, time, YES/NO reply, rates, STOP/HELP.',
         ],
         [
             'key' => 'cancel',
             'title' => 'Cancellation',
-            'when' => 'After a visit is cancelled',
-            'message' => preview_fill_message($templates['cancel'], $sample),
+            'when' => 'Sent after a visit is cancelled.',
+            'includes' => 'Clinic name, patient name, cancelled date/time, rates, STOP/HELP.',
         ],
         [
             'key' => 'reschedule',
             'title' => 'Reschedule',
-            'when' => 'After a visit time changes',
-            'message' => preview_fill_message($templates['reschedule'], $sample),
+            'when' => 'Sent after a visit is moved to a new date or time.',
+            'includes' => 'Clinic name, patient name, new date/time, YES confirm, rates, STOP/HELP.',
         ],
     ];
+
+    foreach ($cards as &$card) {
+        $card['message'] = preview_fill_message($templates[$card['key']], $sample);
+    }
+    unset($card);
+
+    return $cards;
 }

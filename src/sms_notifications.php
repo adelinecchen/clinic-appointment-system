@@ -124,9 +124,9 @@ function sms_build_message(string $templateKey, array $vars): string
     $template = (string) ($templates[$templateKey] ?? '');
     if ($template === '') {
         $template = match ($templateKey) {
-            'cancel' => 'Hi {name}, this is {clinic}. Your visit on {date} at {time} was cancelled. Reply STOP to opt out of texts.',
-            'reschedule' => 'Hi {name}, this is {clinic}. Your visit was moved to {date} at {time}. Reply STOP to opt out of texts.',
-            default => 'Hi {name}, this is {clinic}. Your visit is on {date} at {time}.',
+            'cancel' => '{clinic}: Hi {name}, your visit on {date} at {time} was cancelled. Book again anytime if you need a new time. Msg & data rates may apply. Reply STOP to opt out; HELP for more info.',
+            'reschedule' => '{clinic}: Hi {name}, your visit was moved to {date} at {time}. Reply YES to confirm the new time. Msg & data rates may apply. Reply STOP to opt out; HELP for more info.',
+            default => '{clinic}: Hi {name}, your visit is on {date} at {time}. Msg & data rates may apply. Reply STOP to opt out; HELP for more info.',
         };
     }
 
