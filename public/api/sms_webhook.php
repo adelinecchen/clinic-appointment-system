@@ -74,12 +74,12 @@ $messageStatus = strtolower((string) ($_POST['MessageStatus'] ?? ''));
 if ($from !== '' && $body !== '') {
     $keyword = preg_replace('/\s+/', ' ', $body) ?? $body;
     if (in_array($keyword, ['STOP', 'STOPALL', 'UNSUBSCRIBE', 'CANCEL', 'END', 'QUIT'], true)) {
-        sms_record_opt_out($from, 'keyword');
+        sms_record_opt_out($from, 'sms_stop');
         echo 'You are opted out of clinic texts. Reply START to opt in again.';
         exit;
     }
     if (in_array($keyword, ['START', 'UNSTOP'], true)) {
-        sms_clear_opt_out($from, 'keyword');
+        sms_clear_opt_out($from, 'sms_start');
         echo 'You are opted in to clinic appointment texts. Reply STOP to opt out; HELP for more info.';
         exit;
     }

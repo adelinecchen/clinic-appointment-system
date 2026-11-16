@@ -34,7 +34,6 @@ src/                         Not meant to be requested by a browser
   .htaccess                  Denies direct web access to this folder
 database/                    SQL schema used in MySQL Workbench
   databaseDDL.sql            Tables, keys, and constraints for clinic_db
-  migrations/                Versioned ALTER scripts for existing databases
 ```
 
 Staff sign in with email against the MariaDB `Admin` table. Set `APP_NAME` in `.env` for the display name.
@@ -159,11 +158,7 @@ VALUES (
 );
 ```
 
-Apply schema updates on existing databases with:
-
-```bash
-/Applications/XAMPP/xamppfiles/bin/mysql -h 127.0.0.1 -u root < database/migrations/001_admin_role.sql
-```
+While developing locally, change the schema in `database/databaseDDL.sql` and recreate `clinic_db` from that file when needed (demo data is disposable). Versioned ALTER migrations are not required until a shared or production database must be upgraded in place.
 
 ### SMS (Twilio)
 

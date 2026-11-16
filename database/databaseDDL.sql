@@ -1,10 +1,15 @@
 USE clinic_db;
 
 -- 1. PATIENT
+-- SmsConsent* is phone-level in application logic: STOP/START updates every
+-- Patient row that shares the same phone digits (family shared phones).
 CREATE TABLE Patient (
     Patient_ID INT AUTO_INCREMENT PRIMARY KEY,
     Name VARCHAR(50) NOT NULL,
-    PhoneNumber VARCHAR(15) NOT NULL
+    PhoneNumber VARCHAR(15) NOT NULL,
+    SmsConsentStatus ENUM('unknown', 'opted_in', 'opted_out') NOT NULL DEFAULT 'unknown',
+    SmsConsentUpdatedAt DATETIME NULL DEFAULT NULL,
+    SmsConsentSource VARCHAR(30) NULL DEFAULT NULL
 ) ENGINE=InnoDB; # specific engine to allow foreign keys
 
 

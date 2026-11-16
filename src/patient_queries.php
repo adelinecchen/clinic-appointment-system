@@ -19,7 +19,8 @@ function patient_find_by_id(int $patientId): ?array
     }
 
     $statement = db()->prepare(
-        'SELECT Patient_ID, Name, PhoneNumber
+        'SELECT Patient_ID, Name, PhoneNumber,
+                SmsConsentStatus, SmsConsentUpdatedAt, SmsConsentSource
          FROM Patient
          WHERE Patient_ID = :patient_id
          LIMIT 1'
@@ -70,6 +71,8 @@ function patient_create(string $name, string $phoneNumber): array
         ]);
 
         $patientId = (int) db()->lastInsertId();
+        require_once __DIR__ . '/sms_consent.php';
+        sms_inherit_consent_for_new_patient($patientId, $phoneNumber);
         $patient = patient_find_by_id($patientId);
         if ($patient === null) {
             return [
@@ -124,13 +127,22 @@ function patients_find_by_phone(string $phoneNumber): array
     }
 
     // Compare digit forms so "(757) 555-1234" and "7575551234" match.
+    if (strlen($digits) === 11 && str_starts_with($digits, '1')) {
+        $digits = substr($digits, 1);
+    }
+
+    $digitExpr = "REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(PhoneNumber, '(', ''), ')', ''), '-', ''), ' ', ''), '+', '')";
     $statement = db()->prepare(
-        "SELECT Patient_ID, Name, PhoneNumber
+        "SELECT Patient_ID, Name, PhoneNumber,
+                SmsConsentStatus, SmsConsentUpdatedAt, SmsConsentSource
          FROM Patient
-         WHERE REPLACE(REPLACE(REPLACE(REPLACE(PhoneNumber, '(', ''), ')', ''), '-', ''), ' ', '') = :digits
+         WHERE {$digitExpr} IN (:d10, :d11)
          ORDER BY Patient_ID ASC"
     );
-    $statement->execute(['digits' => $digits]);
+    $statement->execute([
+        'd10' => $digits,
+        'd11' => '1' . $digits,
+    ]);
 
     $patients = [];
     foreach ($statement->fetchAll() as $row) {
@@ -142,15 +154,33 @@ function patients_find_by_phone(string $phoneNumber): array
 
 /**
  * @param array<string, mixed> $row
- * @return array{Patient_ID: int, Name: string, PhoneNumber: string}
+ * @return array{
+ *   Patient_ID: int,
+ *   Name: string,
+ *   PhoneNumber: string,
+ *   SmsConsentStatus?: string,
+ *   SmsConsentUpdatedAt?: string|null,
+ *   SmsConsentSource?: string|null
+ * }
  */
 function patient_row(array $row): array
 {
-    return [
+    $out = [
         'Patient_ID' => (int) $row['Patient_ID'],
         'Name' => (string) $row['Name'],
         'PhoneNumber' => (string) $row['PhoneNumber'],
     ];
+    if (array_key_exists('SmsConsentStatus', $row)) {
+        $out['SmsConsentStatus'] = (string) ($row['SmsConsentStatus'] ?? 'unknown');
+        $out['SmsConsentUpdatedAt'] = isset($row['SmsConsentUpdatedAt']) && $row['SmsConsentUpdatedAt'] !== null
+            ? (string) $row['SmsConsentUpdatedAt']
+            : null;
+        $out['SmsConsentSource'] = isset($row['SmsConsentSource']) && $row['SmsConsentSource'] !== null
+            ? (string) $row['SmsConsentSource']
+            : null;
+    }
+
+    return $out;
 }
 
 function patient_text_length(string $value): int

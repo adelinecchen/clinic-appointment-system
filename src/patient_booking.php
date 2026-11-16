@@ -295,7 +295,7 @@ function patient_booking_submit(array $input): array
         if ($wantsSms) {
             require_once __DIR__ . '/sms_consent.php';
             require_once __DIR__ . '/sms_notifications.php';
-            sms_record_consent($formattedPhone, 'booking');
+            sms_record_consent($formattedPhone, 'booking_form');
             $booking['sms'] = sms_notify_booking((int) $appointment['Appointment_ID']);
         }
 

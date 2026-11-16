@@ -225,11 +225,19 @@ function sms_send_twilio(string $e164, string $body, string $context): array
         $timeout = 5;
     }
 
+    // Newer Twilio free trials reject custom bodies; Body must be a template key
+    // such as sms_appointment_reminders. Set SMS_TWILIO_TRIAL_MODE=true for that.
+    $trialMode = in_array(strtolower(env_value('SMS_TWILIO_TRIAL_MODE', 'false')), ['1', 'true', 'yes', 'on'], true);
+    $bodyToSend = $body;
+    if ($trialMode) {
+        $bodyToSend = env_value('SMS_TWILIO_TRIAL_TEMPLATE', 'sms_appointment_reminders');
+    }
+
     $url = 'https://api.twilio.com/2010-04-01/Accounts/' . rawurlencode($sid) . '/Messages.json';
     $payload = http_build_query([
         'To' => $e164,
         'From' => $from,
-        'Body' => $body,
+        'Body' => $bodyToSend,
     ]);
 
     $ch = curl_init($url);
