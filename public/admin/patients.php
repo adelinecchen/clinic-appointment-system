@@ -228,75 +228,35 @@ admin_page_start('Patients', 'patients');
                                     <a class="btn btn-line" href="tel:<?php echo h($appointment['phone_digits']); ?>">Call patient</a>
                                 <?php endif; ?>
                                 <?php if (in_array($appointment['status'], ['no_reply', 'reminder_sent'], true) && $waiting !== []): ?>
-                                    <details class="fill">
-                                        <summary>Hold for waitlist</summary>
-                                        <form method="post">
-                                            <?php echo csrf_field(); ?>
-                                            <input type="hidden" name="action" value="double">
-                                            <input type="hidden" name="id" value="<?php echo h($appointment['id']); ?>">
-                                            <input type="hidden" name="q" value="<?php echo h($query); ?>">
-                                            <input type="hidden" name="view" value="<?php echo h($view); ?>">
-                                            <p>Keep this unconfirmed visit, and also book the same time for someone waiting (intentional double-book).</p>
-                                            <?php foreach ($waiting as $person): ?>
-                                                <label>
-                                                    <input type="radio" name="waitlist_id" value="<?php echo h($person['id']); ?>" required>
-                                                    <span>
-                                                        <strong><?php echo h($person['name']); ?></strong>
-                                                        <?php echo h($person['visit'] . ' · ' . $person['phone']); ?>
-                                                    </span>
-                                                </label>
-                                            <?php endforeach; ?>
-                                            <button class="btn btn-solid" type="submit">Hold this time</button>
-                                        </form>
-                                    </details>
+                                    <button
+                                        class="btn btn-line"
+                                        type="button"
+                                        data-open-hold
+                                        data-id="<?php echo h($appointment['id']); ?>"
+                                        data-patient="<?php echo h($appointment['patient']); ?>"
+                                        data-when="<?php echo h($appointment['date_label'] . ' · ' . $appointment['time']); ?>"
+                                    >Hold for waitlist</button>
                                 <?php endif; ?>
                                 <?php if ($openDays !== []): ?>
-                                    <details class="fill">
-                                        <summary>Change time</summary>
-                                        <form method="post" data-move-form>
-                                            <?php echo csrf_field(); ?>
-                                            <input type="hidden" name="action" value="move">
-                                            <input type="hidden" name="id" value="<?php echo h($appointment['id']); ?>">
-                                            <input type="hidden" name="q" value="<?php echo h($query); ?>">
-                                            <input type="hidden" name="view" value="<?php echo h($view); ?>">
-                                            <label>
-                                                Day
-                                                <select name="date">
-                                                    <?php foreach ($openDays as $dayOption): ?>
-                                                        <option value="<?php echo h($dayOption['value']); ?>"<?php echo $dayOption['value'] === $appointment['date'] ? ' selected' : ''; ?>>
-                                                            <?php echo h($dayOption['full']); ?>
-                                                        </option>
-                                                    <?php endforeach; ?>
-                                                </select>
-                                            </label>
-                                            <label>
-                                                Time
-                                                <select name="time" data-current="<?php echo h($appointment['time_value']); ?>">
-                                                    <?php
-                                                    $moveSlots = patient_booking_open_slots($appointment['date'], (int) $appointment['id']);
-                                                    if ($moveSlots === []) {
-                                                        $moveSlots = [['value' => $appointment['time_value'], 'label' => $appointment['time']]];
-                                                    }
-                                                    foreach ($moveSlots as $slot):
-                                                    ?>
-                                                        <option value="<?php echo h($slot['value']); ?>"<?php echo $slot['value'] === $appointment['time_value'] ? ' selected' : ''; ?>>
-                                                            <?php echo h($slot['label']); ?>
-                                                        </option>
-                                                    <?php endforeach; ?>
-                                                </select>
-                                            </label>
-                                            <button class="btn btn-solid" type="submit">Save new time</button>
-                                        </form>
-                                    </details>
+                                    <button
+                                        class="btn btn-line"
+                                        type="button"
+                                        data-open-move
+                                        data-id="<?php echo h($appointment['id']); ?>"
+                                        data-patient="<?php echo h($appointment['patient']); ?>"
+                                        data-date="<?php echo h($appointment['date']); ?>"
+                                        data-time="<?php echo h($appointment['time_value']); ?>"
+                                        data-time-label="<?php echo h($appointment['time']); ?>"
+                                    >Change time</button>
                                 <?php endif; ?>
-                                <form method="post">
-                                    <?php echo csrf_field(); ?>
-                                    <input type="hidden" name="action" value="cancel">
-                                    <input type="hidden" name="id" value="<?php echo h($appointment['id']); ?>">
-                                    <input type="hidden" name="q" value="<?php echo h($query); ?>">
-                                    <input type="hidden" name="view" value="<?php echo h($view); ?>">
-                                    <button class="btn btn-line" type="submit">Cancel visit</button>
-                                </form>
+                                <button
+                                    class="btn btn-line"
+                                    type="button"
+                                    data-open-cancel
+                                    data-id="<?php echo h($appointment['id']); ?>"
+                                    data-patient="<?php echo h($appointment['patient']); ?>"
+                                    data-when="<?php echo h($appointment['date_label'] . ' · ' . $appointment['time']); ?>"
+                                >Cancel visit</button>
                             <?php endif; ?>
                         </div>
                         </div>
@@ -305,7 +265,94 @@ admin_page_start('Patients', 'patients');
             </section>
         <?php endforeach; ?>
     <?php endif; ?>
-    <script type="application/json" id="upcoming-slots"><?php echo json_encode($slotMap, JSON_UNESCAPED_SLASHES); ?></script>
+    <dialog class="desk-modal" id="move-modal" aria-labelledby="move-modal-title">
+        <form method="post" class="desk-modal-card" id="move-form">
+            <?php echo csrf_field(); ?>
+            <input type="hidden" name="action" value="move">
+            <input type="hidden" name="id" id="move-id" value="">
+            <input type="hidden" name="q" value="<?php echo h($query); ?>">
+            <input type="hidden" name="view" value="<?php echo h($view); ?>">
+            <input type="hidden" name="date" id="move-date" value="" required>
+            <input type="hidden" name="time" id="move-time" value="" required>
+            <header class="desk-modal-head">
+                <h2 id="move-modal-title">Change time</h2>
+                <p class="muted" id="move-modal-note">Pick a new day and time.</p>
+                <button class="desk-modal-close" type="button" data-close-modal aria-label="Close">&times;</button>
+            </header>
+            <div class="move-cal" aria-label="Choose a day">
+                <div class="move-cal-nav">
+                    <button class="btn btn-line" type="button" id="move-prev-month">Previous</button>
+                    <h3 id="move-month-label">Month</h3>
+                    <button class="btn btn-line" type="button" id="move-next-month">Next</button>
+                </div>
+                <div class="move-cal-grid" id="move-cal-grid" role="grid"></div>
+            </div>
+            <p class="picker-label">Time</p>
+            <div class="move-times" id="move-times" role="group" aria-label="Choose a time"></div>
+            <div class="desk-modal-actions">
+                <button class="btn btn-line" type="button" data-close-modal>Back</button>
+                <button class="btn btn-solid" type="submit" id="move-submit" disabled>Save new time</button>
+            </div>
+        </form>
+    </dialog>
+
+    <dialog class="desk-modal" id="cancel-modal" aria-labelledby="cancel-modal-title">
+        <form method="post" class="desk-modal-card desk-modal-card--narrow" id="cancel-form">
+            <?php echo csrf_field(); ?>
+            <input type="hidden" name="action" value="cancel">
+            <input type="hidden" name="id" id="cancel-id" value="">
+            <input type="hidden" name="q" value="<?php echo h($query); ?>">
+            <input type="hidden" name="view" value="<?php echo h($view); ?>">
+            <header class="desk-modal-head">
+                <h2 id="cancel-modal-title">Cancel visit?</h2>
+                <button class="desk-modal-close" type="button" data-close-modal aria-label="Close">&times;</button>
+            </header>
+            <p id="cancel-modal-copy">Are you sure you want to cancel this appointment?</p>
+            <div class="desk-modal-actions">
+                <button class="btn btn-line" type="button" data-close-modal>No</button>
+                <button class="btn btn-remove" type="submit">Yes, cancel</button>
+            </div>
+        </form>
+    </dialog>
+
+    <?php if ($waiting !== []): ?>
+        <dialog class="desk-modal" id="hold-modal" aria-labelledby="hold-modal-title">
+            <form method="post" class="desk-modal-card" id="hold-form">
+                <?php echo csrf_field(); ?>
+                <input type="hidden" name="action" value="double">
+                <input type="hidden" name="id" id="hold-id" value="">
+                <input type="hidden" name="q" value="<?php echo h($query); ?>">
+                <input type="hidden" name="view" value="<?php echo h($view); ?>">
+                <header class="desk-modal-head">
+                    <h2 id="hold-modal-title">Hold for waitlist</h2>
+                    <button class="desk-modal-close" type="button" data-close-modal aria-label="Close">&times;</button>
+                </header>
+                <p id="hold-modal-copy">This keeps the original unconfirmed visit, and also books the same time for someone on the waitlist (intentional double-book). If the first patient confirms, you’ll still have both on that slot.</p>
+                <p class="muted" id="hold-modal-note"></p>
+                <p class="picker-label">Choose who to hold this time for</p>
+                <div class="hold-people">
+                    <?php foreach ($waiting as $index => $person): ?>
+                        <label class="hold-person">
+                            <input type="radio" name="waitlist_id" value="<?php echo h($person['id']); ?>"<?php echo $index === 0 ? ' required' : ''; ?>>
+                            <span>
+                                <strong><?php echo h($person['name']); ?></strong>
+                                <small><?php echo h($person['visit'] . ' · ' . $person['phone']); ?></small>
+                            </span>
+                        </label>
+                    <?php endforeach; ?>
+                </div>
+                <div class="desk-modal-actions">
+                    <button class="btn btn-line" type="button" data-close-modal>Back</button>
+                    <button class="btn btn-solid" type="submit">Hold this time</button>
+                </div>
+            </form>
+        </dialog>
+    <?php endif; ?>
+
+    <script type="application/json" id="patients-move-data"><?php echo json_encode([
+        'slots' => $slotMap,
+        'days' => $openDays,
+    ], JSON_UNESCAPED_SLASHES); ?></script>
     <script src="../assets/js/patients.js"></script>
 <?php
 admin_page_end();

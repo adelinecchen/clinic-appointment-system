@@ -94,12 +94,13 @@ admin_page_start('Staff', 'staff');
                                 <td><?php echo h(staff_role_label((string) $account['role'])); ?></td>
                                 <td>
                                     <a class="btn btn-line" href="staff.php?edit=<?php echo h((string) $account['id']); ?>">Edit</a>
-                                    <form method="post" class="inline-form">
-                                        <?php echo csrf_field(); ?>
-                                        <input type="hidden" name="action" value="delete">
-                                        <input type="hidden" name="id" value="<?php echo h((string) $account['id']); ?>">
-                                        <button class="btn btn-remove" type="submit">Delete</button>
-                                    </form>
+                                    <button
+                                        class="btn btn-remove"
+                                        type="button"
+                                        data-open-delete
+                                        data-id="<?php echo h((string) $account['id']); ?>"
+                                        data-name="<?php echo h((string) $account['name']); ?>"
+                                    >Delete</button>
                                 </td>
                             </tr>
                         <?php endforeach; ?>
@@ -153,5 +154,23 @@ admin_page_start('Staff', 'staff');
             </section>
         </div>
     </div>
+
+    <dialog class="desk-modal" id="delete-modal" aria-labelledby="delete-modal-title">
+        <form method="post" class="desk-modal-card desk-modal-card--narrow" id="delete-form">
+            <?php echo csrf_field(); ?>
+            <input type="hidden" name="action" value="delete">
+            <input type="hidden" name="id" id="delete-id" value="">
+            <header class="desk-modal-head">
+                <h2 id="delete-modal-title">Delete account?</h2>
+                <button class="desk-modal-close" type="button" data-close-modal aria-label="Close">&times;</button>
+            </header>
+            <p id="delete-modal-copy">Are you sure you want to delete this staff account?</p>
+            <div class="desk-modal-actions">
+                <button class="btn btn-line" type="button" data-close-modal>No</button>
+                <button class="btn btn-remove" type="submit">Yes, delete</button>
+            </div>
+        </form>
+    </dialog>
+    <script src="../assets/js/staff.js"></script>
 <?php
 admin_page_end();

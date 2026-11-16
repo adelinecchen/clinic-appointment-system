@@ -135,52 +135,89 @@ $hasPlaceable = $placeDays !== [];
                         <?php if ($entry['status'] === 'Held'): ?>
                             <p class="muted wait-actions-note">Already holding an unconfirmed time.</p>
                         <?php elseif ($hasPlaceable): ?>
-                            <details class="wait-place">
-                                <summary>Place into a time</summary>
-                                <form method="post" class="wait-place-form" data-waitlist-place>
-                                    <?php echo csrf_field(); ?>
-                                    <input type="hidden" name="action" value="place">
-                                    <input type="hidden" name="waitlist_id" value="<?php echo h($entry['id']); ?>">
-                                    <p>Pick a day, then a time. <strong>Open slot</strong> books them into a free time (including cancellations). <strong>Hold</strong> double-books them onto a visit that has not confirmed yet.</p>
-                                    <label>
-                                        Day
-                                        <select name="date" required>
-                                            <?php foreach ($placeDays as $dayOption): ?>
-                                                <option value="<?php echo h($dayOption['value']); ?>">
-                                                    <?php echo h($dayOption['full']); ?>
-                                                </option>
-                                            <?php endforeach; ?>
-                                        </select>
-                                    </label>
-                                    <label>
-                                        Time
-                                        <select name="placement" required>
-                                            <?php
-                                            $firstDate = (string) $placeDays[0]['value'];
-                                            foreach ($placeSlots[$firstDate] ?? [] as $slotOption):
-                                            ?>
-                                                <option value="<?php echo h($slotOption['value']); ?>">
-                                                    <?php echo h($slotOption['label']); ?>
-                                                </option>
-                                            <?php endforeach; ?>
-                                        </select>
-                                    </label>
-                                    <button class="btn btn-solid" type="submit">Place this person</button>
-                                </form>
-                            </details>
+                            <button
+                                class="btn btn-line"
+                                type="button"
+                                data-open-place
+                                data-id="<?php echo h($entry['id']); ?>"
+                                data-patient="<?php echo h($entry['name']); ?>"
+                                data-visit="<?php echo h($entry['visit']); ?>"
+                            >Place into a time</button>
                         <?php else: ?>
                             <p class="muted wait-actions-note">No open or unconfirmed times right now.</p>
                         <?php endif; ?>
-                        <form method="post" class="wait-remove">
-                            <?php echo csrf_field(); ?>
-                            <input type="hidden" name="action" value="remove">
-                            <input type="hidden" name="waitlist_id" value="<?php echo h($entry['id']); ?>">
-                            <button class="btn btn-remove" type="submit">Remove</button>
-                        </form>
+                        <button
+                            class="btn btn-remove"
+                            type="button"
+                            data-open-remove
+                            data-id="<?php echo h($entry['id']); ?>"
+                            data-patient="<?php echo h($entry['name']); ?>"
+                        >Remove</button>
                     </div>
                 </article>
             <?php endforeach; ?>
         </section>
+
+        <?php if ($hasPlaceable): ?>
+            <dialog class="desk-modal" id="place-modal" aria-labelledby="place-modal-title">
+                <form method="post" class="desk-modal-card" id="place-form" data-waitlist-place>
+                    <?php echo csrf_field(); ?>
+                    <input type="hidden" name="action" value="place">
+                    <input type="hidden" name="waitlist_id" id="place-id" value="">
+                    <header class="desk-modal-head">
+                        <h2 id="place-modal-title">Place into a time</h2>
+                        <p class="muted" id="place-modal-note">Pick a day and time for this person.</p>
+                        <button class="desk-modal-close" type="button" data-close-modal aria-label="Close">&times;</button>
+                    </header>
+                    <p>Choose a day, then a time. <strong>Open slot</strong> books them into a free time (including cancellations). <strong>Hold</strong> keeps the original unconfirmed visit and also books this waitlist person onto the same time (intentional double-book).</p>
+                    <label class="wait-place-field">
+                        Day
+                        <select name="date" id="place-date" required>
+                            <?php foreach ($placeDays as $dayOption): ?>
+                                <option value="<?php echo h($dayOption['value']); ?>">
+                                    <?php echo h($dayOption['full']); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </label>
+                    <label class="wait-place-field">
+                        Time
+                        <select name="placement" id="place-placement" required>
+                            <?php
+                            $firstDate = (string) $placeDays[0]['value'];
+                            foreach ($placeSlots[$firstDate] ?? [] as $slotOption):
+                            ?>
+                                <option value="<?php echo h($slotOption['value']); ?>">
+                                    <?php echo h($slotOption['label']); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </label>
+                    <div class="desk-modal-actions">
+                        <button class="btn btn-line" type="button" data-close-modal>Back</button>
+                        <button class="btn btn-solid" type="submit">Place this person</button>
+                    </div>
+                </form>
+            </dialog>
+        <?php endif; ?>
+
+        <dialog class="desk-modal" id="remove-modal" aria-labelledby="remove-modal-title">
+            <form method="post" class="desk-modal-card desk-modal-card--narrow" id="remove-form">
+                <?php echo csrf_field(); ?>
+                <input type="hidden" name="action" value="remove">
+                <input type="hidden" name="waitlist_id" id="remove-id" value="">
+                <header class="desk-modal-head">
+                    <h2 id="remove-modal-title">Remove from waitlist?</h2>
+                    <button class="desk-modal-close" type="button" data-close-modal aria-label="Close">&times;</button>
+                </header>
+                <p id="remove-modal-copy">Are you sure you want to remove this person from the waitlist?</p>
+                <div class="desk-modal-actions">
+                    <button class="btn btn-line" type="button" data-close-modal>No</button>
+                    <button class="btn btn-remove" type="submit">Yes, remove</button>
+                </div>
+            </form>
+        </dialog>
+
         <script type="application/json" id="waitlist-slots"><?php echo json_encode($placeSlots, JSON_UNESCAPED_SLASHES); ?></script>
         <script src="../assets/js/waitlist.js"></script>
     <?php endif; ?>

@@ -549,61 +549,24 @@ a.cal-day:hover { background: rgba(42, 165, 173, 0.1); }
     font-weight: 650;
 }
 .wait-actions {
-    display: grid;
-    grid-template-columns: auto auto;
-    justify-content: start;
+    display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    column-gap: 0.45rem;
-    row-gap: 0.75rem;
+    gap: 0.45rem;
     margin-top: 0.35rem;
 }
 .wait-actions-note {
     margin: 0;
+    flex: 1 1 100%;
 }
-.wait-place {
-    width: auto;
-}
-.wait-remove {
-    align-self: start;
-}
-.wait-place summary {
-    list-style: none;
-    cursor: pointer;
-    display: inline-flex;
-    align-items: center;
-    border: 1.5px solid rgba(42, 165, 173, 0.35);
-    border-radius: 999px;
-    padding: 0.45rem 0.85rem;
-    font-weight: 700;
-    color: var(--teal-deep);
-    background: rgba(255, 255, 255, 0.85);
-}
-.wait-place summary::-webkit-details-marker { display: none; }
-.wait-place[open] summary {
-    background: rgba(42, 165, 173, 0.12);
-}
-.wait-place-form {
-    display: grid;
-    gap: 0.65rem;
-    margin-top: 0.75rem;
-    padding: 0.85rem;
-    border: 1px solid rgba(42, 165, 173, 0.2);
-    border-radius: 1rem;
-    background: rgba(255, 255, 255, 0.92);
-    min-width: min(22rem, 80vw);
-}
-.wait-place-form p {
-    color: var(--muted);
-    font-size: 0.88rem;
-}
-.wait-place-form label {
+.wait-place-field {
     display: grid;
     gap: 0.3rem;
     font-weight: 650;
     color: var(--teal);
     font-size: 0.9rem;
 }
-.wait-place-form select {
+.wait-place-field select {
     width: 100%;
     min-height: 2.75rem;
     border: 1.5px solid rgba(42, 165, 173, 0.28);
@@ -622,6 +585,167 @@ a.cal-day:hover { background: rgba(42, 165, 173, 0.1); }
     background: rgba(253, 232, 230, 0.9);
     border-color: var(--rose-ink);
     color: var(--rose-ink);
+}
+
+.desk-modal {
+    border: 0;
+    padding: 0;
+    background: transparent;
+    max-width: calc(100vw - 1.5rem);
+}
+.desk-modal::backdrop {
+    background: rgba(28, 43, 40, 0.45);
+    backdrop-filter: blur(3px);
+}
+.desk-modal-card {
+    position: relative;
+    width: min(28rem, calc(100vw - 1.5rem));
+    margin: auto;
+    background: rgba(255, 255, 255, 0.96);
+    border: 1px solid rgba(255, 255, 255, 0.8);
+    border-radius: 1.2rem;
+    box-shadow: var(--shadow);
+    padding: 1.2rem 1.15rem 1.1rem;
+    display: grid;
+    gap: 0.85rem;
+}
+.desk-modal-card--narrow { width: min(24rem, calc(100vw - 1.5rem)); }
+.desk-modal-head {
+    display: grid;
+    gap: 0.25rem;
+    padding-right: 2rem;
+}
+.desk-modal-close {
+    position: absolute;
+    top: 0.7rem;
+    right: 0.75rem;
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+    font-size: 1.5rem;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0.15rem 0.4rem;
+    border-radius: 0.45rem;
+}
+.desk-modal-close:hover { background: rgba(42, 165, 173, 0.1); color: var(--ink); }
+.desk-modal-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    justify-content: flex-end;
+    margin-top: 0.25rem;
+}
+.picker-label {
+    margin: 0;
+    color: var(--teal);
+    font-size: 0.82rem;
+    font-weight: 750;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+.move-cal-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-bottom: 0.55rem;
+}
+.move-cal-nav h3 {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 750;
+}
+.move-cal-grid {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 0.28rem;
+}
+.move-cal-head,
+.move-cal-day {
+    text-align: center;
+    font-size: 0.82rem;
+}
+.move-cal-head {
+    color: var(--muted);
+    font-weight: 700;
+    padding-bottom: 0.15rem;
+}
+.move-cal-day {
+    display: grid;
+    place-items: center;
+    aspect-ratio: 1;
+    border-radius: 0.7rem;
+    border: 1.5px solid transparent;
+    background: transparent;
+    color: #9aa8a4;
+    font: inherit;
+    padding: 0;
+}
+.move-cal-day.is-muted { color: #c5d0cc; cursor: default; }
+.move-cal-day.is-open {
+    color: var(--ink);
+    background: rgba(42, 165, 173, 0.12);
+    font-weight: 700;
+    cursor: pointer;
+}
+.move-cal-day.is-open:hover { background: rgba(42, 165, 173, 0.2); }
+.move-cal-day.is-selected {
+    background: var(--teal);
+    color: white;
+    border-color: var(--teal);
+}
+.move-times {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+}
+.move-time-chip { position: relative; }
+.move-time-chip input { position: absolute; opacity: 0; }
+.move-time-chip span {
+    display: inline-block;
+    min-width: 5.2rem;
+    text-align: center;
+    border: 1.5px solid rgba(42, 165, 173, 0.3);
+    border-radius: 999px;
+    padding: 0.5rem 0.7rem;
+    background: rgba(255, 255, 255, 0.9);
+    font-weight: 700;
+    cursor: pointer;
+}
+.move-time-chip:has(input:checked) span {
+    background: var(--teal);
+    color: white;
+    border-color: var(--teal);
+}
+.move-time-chip:has(input:focus-visible) span {
+    outline: 3px solid rgba(42, 165, 173, 0.45);
+    outline-offset: 2px;
+}
+.hold-people {
+    display: grid;
+    gap: 0.45rem;
+}
+.hold-person {
+    display: flex;
+    gap: 0.65rem;
+    align-items: flex-start;
+    border: 1.5px solid rgba(42, 165, 173, 0.28);
+    border-radius: 0.9rem;
+    padding: 0.7rem 0.8rem;
+    background: rgba(255, 255, 255, 0.9);
+    cursor: pointer;
+}
+.hold-person input {
+    margin-top: 0.2rem;
+    accent-color: var(--teal);
+}
+.hold-person span { display: grid; gap: 0.15rem; }
+.hold-person strong { font-weight: 750; }
+.hold-person small { color: var(--muted); }
+.hold-person:has(input:checked) {
+    background: rgba(42, 165, 173, 0.14);
+    border-color: var(--teal);
 }
 .hours-form { display: grid; gap: 0.75rem; margin: 0.85rem 0 0.4rem; }
 .hours-grid {
