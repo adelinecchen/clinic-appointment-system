@@ -10,6 +10,8 @@ declare(strict_types=1);
  *   (Sent = provider accepted or mock success; Failed = send failed). Not carrier delivery.
  * - Reminder sets ConfirmationStatus=Pending only after a successful send attempt.
  * - Booking / cancel / reschedule do not change ConfirmationStatus.
+ * - Dedupe uses Appointment fields (not a file ledger). Cancel/reschedule DB paths
+ *   clear Notification* so the next lifecycle SMS can send once; Sent then blocks duplicates.
  */
 
 require_once __DIR__ . '/sms.php';
@@ -25,70 +27,56 @@ function sms_notification_types(): array
     return ['booking', 'reminder', 'cancel', 'reschedule'];
 }
 
-function sms_dedupe_path(): string
-{
-    return dirname(__DIR__) . '/storage/sms_dedupe.json';
-}
-
 /**
- * @return array<string, string>
+ * Field-based duplicate skip (when !$force).
+ *
+ * Rules:
+ * - booking / reschedule: skip if NotificationStatus is Sent
+ * - cancel: skip if AppointmentStatus is Cancelled and NotificationStatus is Sent
+ * - reminder: skip if ConfirmationStatus is Pending and NotificationStatus is Sent
+ * Failed never skips (retry allowed). force bypasses these checks.
+ *
+ * @param array<string, mixed> $appointment
+ * @return array{
+ *   ok: bool,
+ *   skipped: bool,
+ *   sent: bool,
+ *   error: string,
+ *   code: string,
+ *   provider_id: string|null,
+ *   notification_status: string|null
+ * }|null
  */
-function sms_dedupe_read(): array
+function sms_field_dedupe_skip(array $appointment, string $type): ?array
 {
-    $path = sms_dedupe_path();
-    if (!is_readable($path)) {
-        return [];
-    }
-    $decoded = json_decode((string) file_get_contents($path), true);
+    $notification = clinic_normalize_notification_status($appointment['NotificationStatus'] ?? null);
+    $confirmation = (string) ($appointment['ConfirmationStatus'] ?? '');
+    $status = (string) ($appointment['AppointmentStatus'] ?? '');
 
-    return is_array($decoded) ? $decoded : [];
-}
+    $duplicate = static function (string $code, ?string $notificationStatus): array {
+        return [
+            'ok' => true,
+            'skipped' => true,
+            'sent' => false,
+            'error' => '',
+            'code' => $code,
+            'provider_id' => null,
+            'notification_status' => $notificationStatus,
+        ];
+    };
 
-/**
- * @param array<string, string> $map
- */
-function sms_dedupe_write(array $map): bool
-{
-    $directory = dirname(sms_dedupe_path());
-    if (!is_dir($directory) && !mkdir($directory, 0775, true) && !is_dir($directory)) {
-        return false;
-    }
-    $handle = fopen(sms_dedupe_path(), 'c+');
-    if ($handle === false) {
-        return false;
-    }
-    flock($handle, LOCK_EX);
-    ftruncate($handle, 0);
-    rewind($handle);
-    $ok = fwrite($handle, json_encode($map, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)) !== false;
-    fflush($handle);
-    flock($handle, LOCK_UN);
-    fclose($handle);
-
-    return $ok;
-}
-
-function sms_dedupe_key(int $appointmentId, string $type): string
-{
-    return $appointmentId . ':' . $type;
-}
-
-function sms_already_sent_type(int $appointmentId, string $type): bool
-{
-    $map = sms_dedupe_read();
-
-    return isset($map[sms_dedupe_key($appointmentId, $type)]);
-}
-
-function sms_mark_sent_type(int $appointmentId, string $type): void
-{
-    $map = sms_dedupe_read();
-    $map[sms_dedupe_key($appointmentId, $type)] = (new DateTimeImmutable('now'))->format(DateTimeInterface::ATOM);
-    // Bound growth.
-    if (count($map) > 500) {
-        $map = array_slice($map, -500, null, true);
-    }
-    sms_dedupe_write($map);
+    return match ($type) {
+        'booking', 'reschedule' => $notification === 'Sent'
+            ? $duplicate('duplicate', 'Sent')
+            : null,
+        'cancel' => ($status === 'Cancelled' && $notification === 'Sent')
+            ? $duplicate('duplicate', 'Sent')
+            : null,
+        'reminder' => ($confirmation === 'Pending' && $notification === 'Sent')
+            ? $duplicate('already_reminded', 'Sent')
+            : null,
+        default => null,
+    };
 }
 
 /**
@@ -211,18 +199,6 @@ function sms_notify_appointment(int $appointmentId, string $type, bool $force = 
         ];
     }
 
-    if (!$force && sms_already_sent_type($appointmentId, $type)) {
-        return [
-            'ok' => true,
-            'skipped' => true,
-            'sent' => false,
-            'error' => '',
-            'code' => 'duplicate',
-            'provider_id' => null,
-            'notification_status' => null,
-        ];
-    }
-
     $vars = sms_appointment_message_vars($appointmentId);
     if ($vars === null) {
         return [
@@ -239,6 +215,13 @@ function sms_notify_appointment(int $appointmentId, string $type, bool $force = 
     /** @var array<string, mixed> $appointment */
     $appointment = $vars['appointment'];
     $phone = (string) $vars['phone'];
+
+    if (!$force) {
+        $skip = sms_field_dedupe_skip($appointment, $type);
+        if ($skip !== null) {
+            return $skip;
+        }
+    }
 
     if ($type === 'reminder') {
         $status = (string) $appointment['AppointmentStatus'];
@@ -263,22 +246,6 @@ function sms_notify_appointment(int $appointmentId, string $type, bool $force = 
                 'code' => 'not_remindable',
                 'provider_id' => null,
                 'notification_status' => null,
-            ];
-        }
-        // Prevent duplicate automatic reminders unless forced (admin).
-        if (
-            !$force
-            && $confirmation === 'Pending'
-            && clinic_normalize_notification_status($appointment['NotificationStatus'] ?? null) === 'Sent'
-        ) {
-            return [
-                'ok' => true,
-                'skipped' => true,
-                'sent' => false,
-                'error' => '',
-                'code' => 'already_reminded',
-                'provider_id' => null,
-                'notification_status' => 'Sent',
             ];
         }
     }
@@ -320,7 +287,6 @@ function sms_notify_appointment(int $appointmentId, string $type, bool $force = 
     if ($send['ok']) {
         $confirm = $type === 'reminder' ? 'Pending' : null;
         sms_update_appointment_notification($appointmentId, 'Sent', $confirm);
-        sms_mark_sent_type($appointmentId, $type);
 
         return [
             'ok' => true,
@@ -358,10 +324,9 @@ function sms_notify_cancel(int $appointmentId): array
 
 function sms_notify_reschedule(int $appointmentId): array
 {
-    // Reschedule may happen more than once — allow force=false dedupe per appointment
-    // by clearing prior reschedule marker is awkward; use force only when new reschedule
-    // succeeds from UI (caller passes force via dedicated helper).
-    return sms_notify_appointment($appointmentId, 'reschedule', true);
+    // force=false: reschedule DB clears Notification* first, so one send is allowed;
+    // a second call sees Sent and skips. Failed remains retryable.
+    return sms_notify_appointment($appointmentId, 'reschedule', false);
 }
 
 function sms_notify_reminder(int $appointmentId, bool $force = false): array
@@ -370,7 +335,10 @@ function sms_notify_reminder(int $appointmentId, bool $force = false): array
 }
 
 /**
- * Cron helper: appointments on the target date that still need a reminder.
+ * Cron helper: appointments on the target date that still need a first reminder.
+ * Includes booking/reschedule already-Sent rows while ConfirmationStatus is Not Sent.
+ * Excludes successfully reminded visits (ConfirmationStatus becomes Pending).
+ * Failed reminder attempts stay eligible (ConfirmationStatus remains Not Sent).
  *
  * @return list<array{Appointment_ID: int}>
  */
@@ -382,7 +350,6 @@ function sms_appointments_needing_reminder(string $scheduleDate): array
          WHERE ScheduleDate = :date
            AND AppointmentStatus = 'Scheduled'
            AND ConfirmationStatus = 'Not Sent'
-           AND (NotificationStatus IS NULL OR NotificationStatus = 'Not Sent' OR NotificationStatus = 'Failed')
          ORDER BY ScheduleTime ASC"
     );
     $statement->execute(['date' => $scheduleDate]);

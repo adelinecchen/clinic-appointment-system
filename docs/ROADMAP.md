@@ -36,12 +36,12 @@ Legend: `[x]` done · `[ ]` todo · `[~]` partial / blocked on stakeholders
 Goal: make consent and send safety production-credible **without** a Notification table. Keep live SMS off except intentional local trials.
 
 - [x] Migrate consent / opt-out from `storage/sms_preferences.json` → MariaDB on `Patient` (`SmsConsentStatus` / `UpdatedAt` / `Source`; phone-level STOP; DDL is source of truth)
-- [ ] Replace or reduce reliance on `storage/sms_dedupe.json` (prefer Appointment field rules and/or tiny `LastSmsType`-style column if needed)
+- [x] Replace `storage/sms_dedupe.json` with Appointment-field dedupe (cancel/reschedule clear Notification*; no new column / no Notification table; ADR-011)
 - [ ] Harden webhook: no unsigned accepts outside true local; document public HTTPS URL for Twilio signatures
 - [ ] Env guard: refuse live send unless production (or explicit break-glass flag) in addition to `SMS_ENABLED` / `SMS_MODE`
 - [ ] Cron: document ET; add simple overlap lock; clarify failure/retry behavior
 - [ ] Ensure `storage/` not web-reachable; review log redaction
-- [ ] Regression: extend M9 + any new migration tests; fictional phones only
+- [x] Regression: extend M9 for field dedupe, Failed retries, and cron eligibility (fictional phones only)
 
 **Stakeholder / legal (do not invent policy):**
 

@@ -357,9 +357,13 @@ function appointment_cancel(int $appointmentId): array
         }
 
         if ($status !== 'Cancelled') {
+            // Clear last outbound attempt so cancel SMS can send once (mirrors reschedule).
+            // Already-cancelled no-ops leave NotificationStatus alone to preserve Sent dedupe.
             $update = $pdo->prepare(
                 'UPDATE Appointment
-                 SET AppointmentStatus = :cancelled
+                 SET AppointmentStatus = :cancelled,
+                     NotificationStatus = NULL,
+                     NotificationDate = NULL
                  WHERE Appointment_ID = :appointment_id'
             );
             $update->execute([

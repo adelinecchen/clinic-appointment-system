@@ -125,6 +125,7 @@ function admin_mark_reminder_sent(int $appointmentId): array
         ];
     }
 
+    // force=true: intentional desk re-send; ordinary cron/booking paths use force=false.
     $sms = sms_notify_reminder($appointmentId, true);
     if (!$sms['ok'] && ($sms['code'] ?? '') !== 'already_reminded') {
         // Still surface appointment for UI; distinguish opt-out / consent skips.

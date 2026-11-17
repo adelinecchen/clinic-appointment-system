@@ -7,6 +7,24 @@ Format: **Status** — accepted | superseded | pending stakeholder.
 
 ---
 
+## ADR-011 — SMS dedupe via Appointment fields
+
+**Status:** accepted
+
+**Context:** File `storage/sms_dedupe.json` was interim and fragile. Prefer no Notification table and no new columns.
+
+**Decision:**
+
+- Dedupe from Appointment fields only (`AppointmentStatus`, `ConfirmationStatus`, `NotificationStatus`).
+- `NotificationStatus` / `NotificationDate` remain **last outbound attempt** (`Sent` = provider accept/mock; not delivery).
+- On cancel (status transition) and reschedule, clear `NotificationStatus` / `NotificationDate` so the next lifecycle SMS can send once; `Sent` then blocks duplicates. Already-cancelled no-ops leave fields alone.
+- Rules when `!$force`: booking/reschedule skip if `Sent`; cancel skip if `Cancelled` + `Sent`; reminder skip if `Pending` + `Sent`. `Failed` is always retryable.
+- Ordinary booking/cancel/reschedule/cron use `force=false`. Admin desk reminder may use `force=true` for intentional re-send.
+- Reminder cron: `Scheduled` + `ConfirmationStatus = Not Sent` (includes booking/reschedule already-`Sent`).
+- Retired `sms_dedupe.json`. Still no Notification table / no new columns.
+
+---
+
 ## ADR-010 — Patient SMS consent columns (phone-level)
 
 **Status:** accepted (technical); wording / re-opt-in policy still pending clinic/legal
@@ -29,13 +47,13 @@ Format: **Status** — accepted | superseded | pending stakeholder.
 
 ## ADR-009 — SMS production readiness (Phase 3C review)
 
-**Status:** accepted (review); consent migration landed in ADR-010; other remediations still open
+**Status:** accepted (review); consent migration landed in ADR-010; dedupe landed in ADR-011; other remediations still open
 
 **Context:** Mock SMS works; production needs durable consent and safer ops.
 
-**Decision:** Do not add a Notification table. Prefer minimal remediations: Patient consent/opt-out columns, Appointment-based or small-column dedupe, webhook/env hardening, cron lock. Live SMS stays off until legal/Twilio setup.
+**Decision:** Do not add a Notification table. Prefer minimal remediations: Patient consent/opt-out columns, Appointment-field dedupe, webhook/env hardening, cron lock. Live SMS stays off until legal/Twilio setup.
 
-**Consequences:** `sms_dedupe.json` remains interim; consent moved off `sms_preferences.json`.
+**Consequences:** Consent is on `Patient`; SMS dedupe is Appointment-field-based (ADR-011). Webhook/env/cron hardening still open.
 
 ---
 
