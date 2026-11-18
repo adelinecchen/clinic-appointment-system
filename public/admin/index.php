@@ -153,7 +153,7 @@ admin_page_start('Appointments', 'dashboard');
                                 <?php echo csrf_field(); ?>
                                 <input type="hidden" name="action" value="remind">
                                 <input type="hidden" name="patient_id[]" value="<?php echo h($appointment['id']); ?>">
-                                <button class="btn btn-solid" type="submit">Mark reminder sent</button>
+                                <button class="btn btn-solid" type="submit">Send reminder text</button>
                             </form>
                         <?php elseif ($appointment['status'] === 'reminder_sent'): ?>
                             <a class="btn btn-line" href="tel:<?php echo h($appointment['phone_digits']); ?>">Call patient</a>
@@ -203,8 +203,8 @@ admin_page_start('Appointments', 'dashboard');
                         <?php endforeach; ?>
                     </ul>
                     <p class="sms" id="sms-preview"><?php echo h(admin_reminder_preview_text($unconfirmed[0])); ?></p>
-                    <p class="muted">This marks ConfirmationStatus as Pending and NotificationStatus as Sent. It does not send an SMS.</p>
-                    <button class="btn btn-solid btn-wide" type="submit" id="send-texts">Mark reminder for <?php echo h((string) count($unconfirmed)); ?> patients</button>
+                    <p class="muted">Sends a reminder when the patient opted in. Provider accept is not proof of delivery.</p>
+                    <button class="btn btn-solid btn-wide" type="submit" id="send-texts">Send reminder text to <?php echo h((string) count($unconfirmed)); ?> patients</button>
                 </form>
                 <script type="application/json" id="follow-messages"><?php echo json_encode($messages, JSON_UNESCAPED_SLASHES); ?></script>
             <?php endif; ?>

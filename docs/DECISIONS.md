@@ -7,6 +7,20 @@ Format: **Status** — accepted | superseded | pending stakeholder.
 
 ---
 
+## ADR-014 — Stage B UI copy vs SMS behavior
+
+**Status:** accepted
+
+**Context:** Patient/admin UI still described link-tap confirms and “does not send an SMS” while the backend sends reminders.
+
+**Decision:** Keep the existing layout/design. Align copy only:
+
+- Patient: texts are optional; confirm via YES/NO reply; confirmation page reflects consent + whether a booking SMS was accepted.
+- Admin: reminder actions say they send a text; success/muted copy stress provider accept ≠ delivery; desk badge label “Reminder accepted”.
+- Messages page documents which templates cron/desk actually use (`follow_up`).
+
+---
+
 ## ADR-013 — SMS env guard, cron lock, storage exposure
 
 **Status:** accepted

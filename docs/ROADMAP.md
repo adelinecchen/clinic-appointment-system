@@ -51,14 +51,14 @@ Goal: make consent and send safety production-credible **without** a Notificatio
 
 ---
 
-## Next — Stage B: Final frontend integration
+## Done — Stage B: Final frontend integration
 
 Goal: polish existing UI against the live backend; no redesign-from-scratch unless asked.
 
-- [ ] Patient: booking consent UX, confirmation/status copy vs actual SMS behavior
-- [ ] Admin: Appointments / Patients / Messages wording (accept ≠ delivered); Staff flows
-- [ ] Responsive / spacing passes (Patients, Messages, etc.)
-- [ ] Manual walkthrough of happy paths + errors (fictional data)
+- [x] Patient: optional-consent copy (EN/ES); YES/NO (not “tap link”); confirmation branches on consent + send result
+- [x] Admin: desk/Patients reminder buttons + accept≠delivery wording; Messages template usage clarified; badge “Reminder accepted”
+- [x] Responsive/spacing: Patients visit-manage stack under 800px; consent callout; Messages stack gap
+- [x] Copy walkthrough against booking / remind / cancel / reschedule SMS behavior (fictional data; mock SMS)
 
 ---
 

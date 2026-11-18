@@ -126,7 +126,11 @@ admin_page_start('Staff', 'staff');
                                 <option value="super_admin"<?php echo $editing['role'] === 'super_admin' ? ' selected' : ''; ?>>Super admin</option>
                             </select>
                         </label>
-                        <label>New password <input name="password" type="password" minlength="8" autocomplete="new-password" placeholder="Leave blank to keep it"></label>
+                        <label>
+                            New password
+                            <input name="password" type="password" minlength="8" autocomplete="new-password" placeholder="Leave blank to keep it">
+                            <span class="field-hint">At least 8 characters, or leave blank to keep the current one.</span>
+                        </label>
                         <button class="btn btn-solid" type="submit">Save account</button>
                         <a class="side-link" href="staff.php">Cancel</a>
                     </form>
@@ -142,7 +146,11 @@ admin_page_start('Staff', 'staff');
                     <label>Name <input name="name" required maxlength="50"></label>
                     <label>Phone <input name="phone" type="tel" inputmode="tel" required maxlength="14" placeholder="(757) 555-0142"></label>
                     <label>Email <input name="email" type="email" required maxlength="80"></label>
-                    <label>Password <input name="password" type="password" required minlength="8" autocomplete="new-password"></label>
+                    <label>
+                        Password
+                        <input name="password" type="password" required minlength="8" autocomplete="new-password">
+                        <span class="field-hint">At least 8 characters.</span>
+                    </label>
                     <label>Role
                         <select name="role">
                             <option value="admin">Admin</option>

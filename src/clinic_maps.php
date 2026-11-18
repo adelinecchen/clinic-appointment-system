@@ -101,7 +101,7 @@ function clinic_is_confirmation_status(string $value): bool
     return in_array($value, clinic_confirmation_statuses(), true);
 }
 
-// --- NotificationStatus (delivery of the text/email itself) ---
+// --- NotificationStatus (last outbound send attempt; Sent = provider accept / mock) ---
 
 function clinic_notification_statuses(): array
 {
@@ -180,7 +180,7 @@ function clinic_desk_status_label(string $deskKey): string
     return match ($deskKey) {
         'confirmed' => 'Confirmed',
         'no_reply' => 'No reply',
-        'reminder_sent' => 'Reminder sent',
+        'reminder_sent' => 'Reminder accepted',
         'cancelled' => 'Cancelled',
         default => $deskKey,
     };

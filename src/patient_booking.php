@@ -408,6 +408,11 @@ function patient_booking_store_confirmation(array $booking): void
         session_start();
     }
     $_SESSION['booking_confirmation_id'] = (int) ($booking['appointment_id'] ?? 0);
+    $sms = is_array($booking['sms'] ?? null) ? $booking['sms'] : null;
+    $_SESSION['booking_confirmation_sms'] = [
+        'consent' => !empty($booking['sms_consent']),
+        'sent' => is_array($sms) && !empty($sms['sent']),
+    ];
     unset($_SESSION['booking_preview']);
 }
 
@@ -432,7 +437,18 @@ function patient_booking_load_confirmation(): ?array
         return null;
     }
 
-    return patient_booking_view_model($appointment, $patient['Name'], $patient['PhoneNumber']);
+    $view = patient_booking_view_model($appointment, $patient['Name'], $patient['PhoneNumber']);
+    $smsFlash = $_SESSION['booking_confirmation_sms'] ?? null;
+    unset($_SESSION['booking_confirmation_sms']);
+    if (is_array($smsFlash)) {
+        $view['sms_consent'] = !empty($smsFlash['consent']);
+        $view['sms_sent'] = !empty($smsFlash['sent']);
+    } else {
+        $view['sms_consent'] = false;
+        $view['sms_sent'] = false;
+    }
+
+    return $view;
 }
 
 /**

@@ -238,13 +238,23 @@ form.stack {
 .visit-manage {
     grid-template-columns: 5.4rem minmax(0, 1fr);
     align-items: start;
+    row-gap: 0.45rem;
 }
-.visit-manage .visit-status,
+/* Narrow: time on the first row; status + details stack full-width below. */
+.visit-manage .visit-status {
+    grid-column: 1 / -1;
+}
 .visit-manage .visit-main {
-    grid-column: 2;
+    grid-column: 1 / -1;
 }
 .visit-manage .visit-actions {
-    grid-column: auto;
+    grid-column: 1 / -1;
+}
+.notice + .notice {
+    margin-top: 0;
+}
+form.stack .notice {
+    margin: 0;
 }
 
 .btn {
@@ -955,6 +965,12 @@ a.cal-day:hover { background: rgba(42, 165, 173, 0.1); }
     font-weight: 650;
     color: var(--teal);
     font-size: 0.9rem;
+}
+.staff-form .field-hint {
+    color: var(--muted);
+    font-size: 0.82rem;
+    font-weight: 500;
+    line-height: 1.35;
 }
 .staff-form input, .staff-form select, .notice textarea {
     width: 100%;

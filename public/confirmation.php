@@ -22,7 +22,13 @@ patient_page_start(patient_text('thanks'), 'home');
             <?php else: ?>
                 <p class="check" aria-hidden="true">✓</p>
                 <h1><?php echo h(patient_text('thanks')); ?></h1>
-                <p class="result-lede"><?php echo h(patient_text('text_soon')); ?> <?php echo h((string) $booking['patient_phone']); ?>. <?php echo h(patient_text('text_soon_end')); ?></p>
+                <?php if (!empty($booking['sms_consent']) && !empty($booking['sms_sent'])): ?>
+                    <p class="result-lede"><?php echo h(patient_text('text_soon')); ?> <?php echo h((string) $booking['patient_phone']); ?>. <?php echo h(patient_text('text_soon_end')); ?></p>
+                <?php elseif (!empty($booking['sms_consent'])): ?>
+                    <p class="result-lede"><?php echo h(patient_text('text_opted_pending')); ?></p>
+                <?php else: ?>
+                    <p class="result-lede"><?php echo h(patient_text('text_no_sms')); ?></p>
+                <?php endif; ?>
                 <dl>
                     <div>
                         <dt><?php echo h(patient_text('step_visit')); ?></dt>

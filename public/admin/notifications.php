@@ -38,7 +38,7 @@ admin_page_start('Messages', 'notifications');
     <header class="page-head">
         <div>
             <h1>Messages</h1>
-            <p class="head-note">Standard appointment texts after a patient opts in. Every template should keep clinic identity, visit details, and end with: Reply STOP to opt out; HELP for more info. HELP replies with the clinic phone (<?php echo h($clinic['phone']); ?>).</p>
+            <p class="head-note">Standard appointment texts after a patient opts in. Provider accept is not proof of delivery. Every template should keep clinic identity, visit details, and end with: Reply STOP to opt out; HELP for more info. HELP replies with the clinic phone (<?php echo h($clinic['phone']); ?>).</p>
         </div>
     </header>
     <?php if ($saved): ?>

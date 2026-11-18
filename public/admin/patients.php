@@ -45,7 +45,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($result['ok']) {
                 require_once __DIR__ . '/../../src/sms_notifications.php';
                 sms_notify_cancel($id);
-                $notice = 'Cancelled the visit at ' . $appointment['ScheduleTimeLabel'] . '.';
+                $notice = 'Cancelled the visit at ' . $appointment['ScheduleTimeLabel'] . '. A cancel text is attempted if the patient opted in.';
                 $view = 'cancelled';
             } else {
                 $actionError = (string) $result['error'];
@@ -80,7 +80,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($result['ok']) {
                 require_once __DIR__ . '/../../src/sms_notifications.php';
                 sms_notify_reschedule($id);
-                $notice = 'Moved the visit to ' . $result['appointment']['ScheduleTimeLabel'] . ' on ' . $result['appointment']['ScheduleDate'] . '.';
+                $notice = 'Moved the visit to ' . $result['appointment']['ScheduleTimeLabel'] . ' on ' . $result['appointment']['ScheduleDate'] . '. A reschedule text is attempted if the patient opted in.';
             } else {
                 $actionError = (string) $result['error'];
             }

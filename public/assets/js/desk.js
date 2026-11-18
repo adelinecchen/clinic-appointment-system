@@ -22,13 +22,15 @@
         countLine.textContent = count === 1
             ? "1 patient has not confirmed."
             : count + " patients have not confirmed.";
-        button.textContent = count === 1 ? "Send text to 1 patient" : "Send text to " + count + " patients";
+        button.textContent = count === 1
+            ? "Send reminder text to 1 patient"
+            : "Send reminder text to " + count + " patients";
         button.disabled = count === 0;
         var first = boxes[0];
         var match = messages.find(function (message) {
             return first && message.id === first.value;
         });
-        preview.textContent = match ? match.text : "Choose who should get a text.";
+        preview.textContent = match ? match.text : "Choose who should get a reminder text.";
     }
 
     form.addEventListener("change", refresh);

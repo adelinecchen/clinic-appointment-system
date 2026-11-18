@@ -120,10 +120,9 @@ Authoritative checklist: **[`ROADMAP.md`](ROADMAP.md)**.
 
 At a high level, expected order after this point:
 
-1. **Stage B — Frontend polish / final UI integration** (spacing, copy, flows)—without backend rebuilds.
-2. **Stage C — Deployment preparation** (env, HTTPS, cron install, no demo seeds in prod).
-3. **Stage D — Capstone testing** (scripted + manual), still fictional data; live SMS only if stakeholders approve.
-4. **Stakeholder/legal** (consent copy, BAA/HIPAA project/A2P, SMS body policy) — blocks clinic live SMS; Stage A technical work is done.
+1. **Stage C — Deployment preparation** (env, HTTPS, cron install, no demo seeds in prod).
+2. **Stage D — Capstone testing** (scripted + manual), still fictional data; live SMS only if stakeholders approve.
+3. **Stakeholder/legal** (consent copy, BAA/HIPAA project/A2P, SMS body policy) — blocks clinic live SMS; Stage A/B engineering done.
 
 ---
 
