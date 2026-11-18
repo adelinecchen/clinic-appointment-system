@@ -7,6 +7,40 @@ Format: **Status** — accepted | superseded | pending stakeholder.
 
 ---
 
+## ADR-013 — SMS env guard, cron lock, storage exposure
+
+**Status:** accepted
+
+**Context:** Finish Stage A technical durability without a Notification table.
+
+**Decision:**
+
+- **Env guard:** Live Twilio send requires `sms_live_ready()` **and** (`APP_ENV=production` **or** `SMS_LIVE_BREAK_GLASS=true`). Otherwise return `code=env_guard` (no silent mock success when live was requested). Local trials must set break-glass explicitly and turn it off afterward.
+- **Cron:** `scripts/send_appointment_reminders.php` uses America/New_York for the target date; non-blocking flock on `storage/sms_reminder_cron.lock` skips overlap. Failed sends stay `ConfirmationStatus=Not Sent` for the next run; successes become `Pending`.
+- **Storage:** Document root must stay `public/`. `storage/.htaccess` denies Apache access if the tree is exposed. Logs/mock metadata keep last-4 phone digits only — never full numbers or message bodies.
+
+**Stage A technical work is complete.** Clinic/legal approvals (consent copy, BAA/HIPAA project/A2P, body content) remain separate stakeholder items.
+
+---
+
+## ADR-012 — SMS webhook signature hardening
+
+**Status:** accepted
+
+**Context:** Unsigned webhook accepts were too loose for anything beyond local mock. Request `Host` / URI must not define the signature base URL.
+
+**Decision:**
+
+- Unsigned POSTs only when `APP_ENV=local` **and** (`SMS_ENABLED` is off **or** `SMS_MODE=mock`). Missing/non-local `APP_ENV` fails closed.
+- When `SMS_ENABLED` + `SMS_MODE=live`, always require valid `X-Twilio-Signature`.
+- Validate HMAC over `SMS_WEBHOOK_URL` (exact public URL from env) + sorted POST params + `TWILIO_AUTH_TOKEN`. Never rebuild the URL from the incoming request.
+- Non-local: configured URL must be `https://`. Missing token, URL, or signature → 403.
+- STOP/START/HELP and consent rules unchanged. No Notification table.
+
+**Ops:** Set the same HTTPS URL in Twilio Console (Phone Numbers → Active number → Messaging → “A message comes in” / status callback) and in `SMS_WEBHOOK_URL`.
+
+---
+
 ## ADR-011 — SMS dedupe via Appointment fields
 
 **Status:** accepted
@@ -47,13 +81,13 @@ Format: **Status** — accepted | superseded | pending stakeholder.
 
 ## ADR-009 — SMS production readiness (Phase 3C review)
 
-**Status:** accepted (review); consent migration landed in ADR-010; dedupe landed in ADR-011; other remediations still open
+**Status:** accepted (review); technical remediations completed in ADR-010–013; clinic/legal still open
 
 **Context:** Mock SMS works; production needs durable consent and safer ops.
 
 **Decision:** Do not add a Notification table. Prefer minimal remediations: Patient consent/opt-out columns, Appointment-field dedupe, webhook/env hardening, cron lock. Live SMS stays off until legal/Twilio setup.
 
-**Consequences:** Consent is on `Patient`; SMS dedupe is Appointment-field-based (ADR-011). Webhook/env/cron hardening still open.
+**Consequences:** Consent on `Patient`; field dedupe; webhook signatures; env guard; cron lock; storage deny. Stakeholder/legal approvals still required before clinic live SMS.
 
 ---
 

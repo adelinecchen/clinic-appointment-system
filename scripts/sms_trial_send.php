@@ -12,6 +12,7 @@ declare(strict_types=1);
  * Requires in .env (gitignored):
  *   SMS_ENABLED=true
  *   SMS_MODE=live
+ *   SMS_LIVE_BREAK_GLASS=true  (required when APP_ENV is not production)
  *   TWILIO_ACCOUNT_SID=...
  *   TWILIO_AUTH_TOKEN=...
  *   TWILIO_FROM_NUMBER=+1...   (your Twilio / trial From number)
@@ -45,6 +46,14 @@ if (!sms_live_ready()) {
         . " from_set=" . (env_value('TWILIO_FROM_NUMBER', '') !== '' ? 'yes' : 'no')
         . " sid_set=" . (env_value('TWILIO_ACCOUNT_SID', '') !== '' ? 'yes' : 'no')
         . "\n");
+    exit(1);
+}
+
+if (!sms_live_environment_allowed()) {
+    fwrite(STDERR, "Live SMS env guard blocked this send.\n");
+    fwrite(STDERR, "Set APP_ENV=production, or for intentional local trials:\n");
+    fwrite(STDERR, "  SMS_LIVE_BREAK_GLASS=true\n");
+    fwrite(STDERR, "Flip break-glass back to false when the trial is done.\n");
     exit(1);
 }
 

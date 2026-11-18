@@ -34,6 +34,8 @@ src/                         Not meant to be requested by a browser
   .htaccess                  Denies direct web access to this folder
 database/                    SQL schema used in MySQL Workbench
   databaseDDL.sql            Tables, keys, and constraints for clinic_db
+storage/                     Local templates, CLI tests, mock logs (not web root)
+  .htaccess                  Denies direct web access if the folder is exposed
 ```
 
 Staff sign in with email against the MariaDB `Admin` table. Set `APP_NAME` in `.env` for the display name.
@@ -61,7 +63,7 @@ Staff sign in with email against the MariaDB `Admin` table. Set `APP_NAME` in `.
    - Staff dashboard: [http://localhost/capstone/public/admin/](http://localhost/capstone/public/admin/)
    - Health check: [http://localhost/capstone/public/api/health.php](http://localhost/capstone/public/api/health.php)
 
-Apache is serving the whole `public/` folder, so the URL includes `/public`. A later Apache virtual host can set the document root to `public/` and drop that segment from the URL. Do not point the document root at the repository root: that would expose `src/` and `.env`. `src/.htaccess` blocks direct access if Apache still reaches that folder.
+Apache is serving the whole `public/` folder, so the URL includes `/public`. A later Apache virtual host can set the document root to `public/` and drop that segment from the URL. Do not point the document root at the repository root: that would expose `src/`, `storage/`, and `.env`. `src/.htaccess` and `storage/.htaccess` deny direct access if Apache still reaches those folders.
 
 ## Run it without changing XAMPP
 
@@ -162,7 +164,15 @@ While developing locally, change the schema in `database/databaseDDL.sql` and re
 
 ### SMS (Twilio)
 
-Outbound texts use `src/sms.php` in **mock** mode by default (`SMS_ENABLED=false`, `SMS_MODE=mock`). Live sending requires Twilio credentials, A2P 10DLC registration, a signed BAA with a HIPAA-eligible account configuration, and clinic-approved consent copy. See `.env.example`. Daily reminders can be scheduled with `scripts/send_appointment_reminders.php`.
+Outbound texts use `src/sms.php` in **mock** mode by default (`SMS_ENABLED=false`, `SMS_MODE=mock`). Live sending also requires Twilio credentials, `APP_ENV=production` **or** `SMS_LIVE_BREAK_GLASS=true` for intentional local trials, plus A2P 10DLC, a signed BAA with a HIPAA-eligible account configuration, and clinic-approved consent copy. See `.env.example`.
+
+Daily reminders: `scripts/send_appointment_reminders.php` (America/New_York target date; overlap flock). Example crontab:
+
+```bash
+0 10 * * * TZ=America/New_York /Applications/XAMPP/xamppfiles/bin/php /path/to/Capstone/scripts/send_appointment_reminders.php
+```
+
+Inbound STOP/START and delivery status callbacks hit `public/api/sms_webhook.php`. For live traffic, set `SMS_WEBHOOK_URL` to the **exact** public HTTPS URL of that endpoint and configure the same URL in Twilio Console: **Phone Numbers → Active numbers → [your number] → Messaging** (“A message comes in” and status callback if used). Signatures are validated against `SMS_WEBHOOK_URL`, not the request `Host` header. Local mock/disabled setups may omit signatures when `APP_ENV=local`.
 
 ## Verify the database connection
 

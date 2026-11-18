@@ -29,6 +29,17 @@ function sms_enabled(): bool
     return in_array($flag, ['1', 'true', 'yes', 'on'], true);
 }
 
+function sms_env_flag_true(string $name, string $default = 'false'): bool
+{
+    $flag = strtolower(env_value($name, $default));
+
+    return in_array($flag, ['1', 'true', 'yes', 'on'], true);
+}
+
+/**
+ * Credentials + SMS_ENABLED + SMS_MODE=live are present.
+ * Does not by itself authorize a live network send (see sms_live_environment_allowed).
+ */
 function sms_live_ready(): bool
 {
     return sms_enabled()
@@ -36,6 +47,105 @@ function sms_live_ready(): bool
         && env_value('TWILIO_ACCOUNT_SID', '') !== ''
         && env_value('TWILIO_AUTH_TOKEN', '') !== ''
         && env_value('TWILIO_FROM_NUMBER', '') !== '';
+}
+
+/**
+ * Live Twilio sends are allowed only in production, or with explicit break-glass
+ * (local/staging trials). Default is refuse live outside production.
+ */
+function sms_live_environment_allowed(): bool
+{
+    $appEnv = strtolower(trim(env_value('APP_ENV', '')));
+    if ($appEnv === 'production') {
+        return true;
+    }
+
+    return sms_env_flag_true('SMS_LIVE_BREAK_GLASS');
+}
+
+function sms_live_send_permitted(): bool
+{
+    return sms_live_ready() && sms_live_environment_allowed();
+}
+
+/**
+ * Exact public webhook URL configured in Twilio Console (SMS_WEBHOOK_URL).
+ * Never derived from Host / Request-URI (those are attacker-controlled).
+ */
+function sms_webhook_configured_url(): ?string
+{
+    $url = trim(env_value('SMS_WEBHOOK_URL', ''));
+    if ($url === '' || !preg_match('#^https?://#i', $url)) {
+        return null;
+    }
+
+    return $url;
+}
+
+/**
+ * Unsigned POSTs are allowed only for explicit local mock/disabled setups.
+ * Missing/ambiguous APP_ENV or live-enabled SMS never allows unsigned.
+ */
+function sms_webhook_allows_unsigned(): bool
+{
+    $appEnv = strtolower(trim(env_value('APP_ENV', '')));
+    if ($appEnv !== 'local') {
+        return false;
+    }
+
+    // Live intent with SMS enabled always requires a signature.
+    if (sms_enabled() && sms_mode() === 'live') {
+        return false;
+    }
+
+    // Explicit local safety valve: disabled and/or mock.
+    return !sms_enabled() || sms_mode() === 'mock';
+}
+
+/**
+ * Twilio request signature (HMAC-SHA1 over URL + sorted POST params).
+ *
+ * @param array<string, scalar|null> $params
+ */
+function sms_twilio_signature(string $url, array $params, string $authToken): string
+{
+    ksort($params);
+    $data = $url;
+    foreach ($params as $key => $value) {
+        $data .= $key . (string) $value;
+    }
+
+    return base64_encode(hash_hmac('sha1', $data, $authToken, true));
+}
+
+/**
+ * Authorize an inbound Twilio webhook request.
+ * Fail closed when signature is required and token/URL/signature are missing or invalid.
+ *
+ * @param array<string, scalar|null> $params
+ */
+function sms_webhook_request_authorized(?string $signatureHeader, array $params): bool
+{
+    if (sms_webhook_allows_unsigned()) {
+        return true;
+    }
+
+    $token = trim(env_value('TWILIO_AUTH_TOKEN', ''));
+    $url = sms_webhook_configured_url();
+    $signature = trim((string) $signatureHeader);
+    if ($token === '' || $url === null || $signature === '') {
+        return false;
+    }
+
+    // Non-local deployments must use HTTPS for the configured webhook URL.
+    $appEnv = strtolower(trim(env_value('APP_ENV', '')));
+    if ($appEnv !== 'local' && !str_starts_with(strtolower($url), 'https://')) {
+        return false;
+    }
+
+    $expected = sms_twilio_signature($url, $params, $token);
+
+    return hash_equals($expected, $signature);
 }
 
 /**
@@ -206,6 +316,17 @@ function sms_send(string $to, string $body, string $context = ''): array
             'error' => '',
             'code' => 'mock',
             'mode' => 'mock',
+        ];
+    }
+
+    if (!sms_live_environment_allowed()) {
+        return [
+            'ok' => false,
+            'status' => 'Failed',
+            'provider_id' => null,
+            'error' => 'Live SMS is blocked outside production unless SMS_LIVE_BREAK_GLASS is enabled.',
+            'code' => 'env_guard',
+            'mode' => 'live',
         ];
     }
 

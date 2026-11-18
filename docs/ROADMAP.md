@@ -25,25 +25,25 @@ Legend: `[x]` done · `[ ]` todo · `[~]` partial / blocked on stakeholders
 - [x] `scripts/sms_trial_send.php` for a one-off live smoke test
 - [ ] Put Account SID + Auth Token in local `.env` (never commit)
 - [ ] Verify personal test phone as Verified Caller ID in Twilio Console (trial rule)
-- [ ] Flip local `.env` to `SMS_ENABLED=true` + `SMS_MODE=live` only while testing
+- [ ] Flip local `.env` to `SMS_ENABLED=true` + `SMS_MODE=live` + `SMS_LIVE_BREAK_GLASS=true` only while testing
 - [ ] Run `php scripts/sms_trial_send.php` and confirm phone receives text
-- [ ] Flip back to `SMS_ENABLED=false` / `SMS_MODE=mock` when done testing
+- [ ] Flip back to `SMS_ENABLED=false` / `SMS_MODE=mock` / `SMS_LIVE_BREAK_GLASS=false` when done testing
 
 ---
 
-## Next — Stage A: SMS durability (pre-live)
+## Done — Stage A: SMS durability (technical)
 
 Goal: make consent and send safety production-credible **without** a Notification table. Keep live SMS off except intentional local trials.
 
 - [x] Migrate consent / opt-out from `storage/sms_preferences.json` → MariaDB on `Patient` (`SmsConsentStatus` / `UpdatedAt` / `Source`; phone-level STOP; DDL is source of truth)
 - [x] Replace `storage/sms_dedupe.json` with Appointment-field dedupe (cancel/reschedule clear Notification*; no new column / no Notification table; ADR-011)
-- [ ] Harden webhook: no unsigned accepts outside true local; document public HTTPS URL for Twilio signatures
-- [ ] Env guard: refuse live send unless production (or explicit break-glass flag) in addition to `SMS_ENABLED` / `SMS_MODE`
-- [ ] Cron: document ET; add simple overlap lock; clarify failure/retry behavior
-- [ ] Ensure `storage/` not web-reachable; review log redaction
-- [x] Regression: extend M9 for field dedupe, Failed retries, and cron eligibility (fictional phones only)
+- [x] Harden webhook: unsigned only for local mock/disabled; live validates `X-Twilio-Signature` over `SMS_WEBHOOK_URL`; M10 tests; ADR-012
+- [x] Env guard: live send only when `APP_ENV=production` or `SMS_LIVE_BREAK_GLASS=true` (plus enabled/live/credentials); M11; ADR-013
+- [x] Cron: America/New_York target date; flock overlap lock; Failed stays retryable next run; ADR-013
+- [x] `storage/.htaccess` deny + gitignore exception; log/mock redaction review (last4 only); ADR-013
+- [x] Regression: M9 field dedupe; M10 webhook; M11 ops guards (fictional phones only)
 
-**Stakeholder / legal (do not invent policy):**
+**Stage A technical checklist is complete.** Stakeholder / legal items below remain open and block real clinic live SMS (do not invent policy):
 
 - [~] Approve consent copy and STOP/START re-opt-in rules
 - [~] Twilio BAA + HIPAA project + A2P 10DLC + From number

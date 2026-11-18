@@ -360,3 +360,53 @@ function sms_appointments_needing_reminder(string $scheduleDate): array
 
     return $rows;
 }
+
+function sms_reminder_cron_lock_path(): string
+{
+    return dirname(__DIR__) . '/storage/sms_reminder_cron.lock';
+}
+
+/**
+ * Non-blocking exclusive lock so overlapping cron invocations do not double-send.
+ *
+ * @return resource|false
+ */
+function sms_reminder_cron_acquire_lock()
+{
+    $path = sms_reminder_cron_lock_path();
+    $directory = dirname($path);
+    if (!is_dir($directory) && !mkdir($directory, 0775, true) && !is_dir($directory)) {
+        return false;
+    }
+
+    $handle = fopen($path, 'c+');
+    if ($handle === false) {
+        return false;
+    }
+
+    if (!flock($handle, LOCK_EX | LOCK_NB)) {
+        fclose($handle);
+
+        return false;
+    }
+
+    ftruncate($handle, 0);
+    rewind($handle);
+    fwrite(
+        $handle,
+        (string) getmypid() . ' ' . (new DateTimeImmutable('now', new DateTimeZone('America/New_York')))
+            ->format(DateTimeInterface::ATOM) . "\n"
+    );
+    fflush($handle);
+
+    return $handle;
+}
+
+/**
+ * @param resource $handle
+ */
+function sms_reminder_cron_release_lock($handle): void
+{
+    flock($handle, LOCK_UN);
+    fclose($handle);
+}

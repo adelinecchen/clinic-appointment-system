@@ -44,7 +44,7 @@ public/                 Web root (patient + admin + api)
   confirmation.php      Post-booking receipt
   admin/*.php           Staff desk (login-gated)
   api/health.php        Health JSON
-  api/sms_webhook.php   Twilio STOP/START + status ack
+  api/sms_webhook.php   Twilio STOP/START + status ack (signature rules: ADR-012)
 src/                    PHP helpers (not web-served; .htaccess deny)
   db.php                Sole PDO entry
   admin_auth.php        Email auth + Admin CRUD + roles
@@ -79,7 +79,7 @@ docs/                   Project documentation for agents and maintainers
 - Consent/opt-out: `Patient.SmsConsentStatus` / `SmsConsentUpdatedAt` / `SmsConsentSource` (phone-level across shared numbers).
 - Dedupe: Appointment fields only (booking/reschedule skip on `Sent`; cancel skip on `Cancelled`+`Sent`; reminder skip on `Pending`+`Sent`). Cancel/reschedule DB clears `Notification*` so the next lifecycle SMS can send once. No `sms_dedupe.json`.
 
-**Intentionally still file/preview-backed:** clinic display name, message templates (`storage/messages.json`).
+**Intentionally still file/preview-backed:** clinic display name, message templates (`storage/messages.json`). `storage/` is outside the web root; `storage/.htaccess` denies Apache if the tree is exposed.
 
 ---
 
@@ -106,11 +106,11 @@ See [`DECISIONS.md`](DECISIONS.md) for full notes. Short version:
 | Final backend review | Integration fixes, M3–M7 green |
 | Phase 3A | DB admin auth + roles; Staff CRUD on `Admin` |
 | Phase 3B | SMS helper, workflows, mock tests (M9) |
-| Phase 3C | Production readiness **review**; consent → MariaDB; field-based SMS dedupe (ADR-011) |
+| Phase 3C / Stage A | Consent → MariaDB; field dedupe; webhook signatures; env guard; cron lock; storage deny (ADR-010–013) |
 
 **Tests (CLI, fictional data):**  
-`storage/m3_booking_test.php` … `m9_sms_test.php`  
-Run with XAMPP PHP, e.g. `/Applications/XAMPP/xamppfiles/bin/php storage/m9_sms_test.php`
+`storage/m3_booking_test.php` … `m11_sms_ops_test.php`  
+Run with XAMPP PHP, e.g. `/Applications/XAMPP/xamppfiles/bin/php storage/m11_sms_ops_test.php`
 
 ---
 
@@ -120,10 +120,10 @@ Authoritative checklist: **[`ROADMAP.md`](ROADMAP.md)**.
 
 At a high level, expected order after this point:
 
-1. **SMS durability** (remaining): harden webhook/env guards and cron lock (consent + field dedupe done).
-2. **Frontend polish / final UI integration** for capstone (spacing, copy, flows)—without backend rebuilds.
-3. **Deployment preparation** (env, HTTPS, cron, no demo seeds in prod).
-4. **Capstone testing** (scripted + manual), still fictional data; live SMS only if stakeholders approve.
+1. **Stage B — Frontend polish / final UI integration** (spacing, copy, flows)—without backend rebuilds.
+2. **Stage C — Deployment preparation** (env, HTTPS, cron install, no demo seeds in prod).
+3. **Stage D — Capstone testing** (scripted + manual), still fictional data; live SMS only if stakeholders approve.
+4. **Stakeholder/legal** (consent copy, BAA/HIPAA project/A2P, SMS body policy) — blocks clinic live SMS; Stage A technical work is done.
 
 ---
 

@@ -9,8 +9,13 @@ declare(strict_types=1);
  * - Delivery callbacks are acknowledged but do not claim Appointment delivery
  *   (no ProviderMessageID column without a Notification table).
  *
- * Configure the Twilio number's webhook to POST here over HTTPS in production.
- * Validate X-Twilio-Signature when SMS_MODE=live.
+ * Signature rules (see sms_webhook_request_authorized in src/sms.php):
+ * - Unsigned accepted only when APP_ENV=local AND (SMS_ENABLED=false OR SMS_MODE=mock).
+ * - Otherwise require valid X-Twilio-Signature over SMS_WEBHOOK_URL + POST params.
+ *
+ * Twilio Console: Phone Numbers → Active numbers → your number → Messaging
+ * configure "A message comes in" (and status callback, if used) to the same
+ * public HTTPS URL stored in SMS_WEBHOOK_URL (must match exactly).
  */
 
 require_once __DIR__ . '/../../src/bootstrap.php';
@@ -26,41 +31,16 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
-function sms_webhook_url(): string
-{
-    $https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
-        || strtolower((string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https';
-    $host = (string) ($_SERVER['HTTP_HOST'] ?? 'localhost');
-    $uri = (string) ($_SERVER['REQUEST_URI'] ?? '/api/sms_webhook.php');
-
-    return ($https ? 'https://' : 'http://') . $host . $uri;
+$signature = (string) ($_SERVER['HTTP_X_TWILIO_SIGNATURE'] ?? '');
+/** @var array<string, scalar|null> $params */
+$params = [];
+foreach ($_POST as $key => $value) {
+    if (is_scalar($value) || $value === null) {
+        $params[(string) $key] = $value;
+    }
 }
 
-function sms_webhook_signature_valid(): bool
-{
-    if (!sms_live_ready()) {
-        // Mock / disabled: accept for local testing only.
-        return strtolower(env_value('APP_ENV', 'local')) === 'local';
-    }
-
-    $token = env_value('TWILIO_AUTH_TOKEN');
-    $signature = (string) ($_SERVER['HTTP_X_TWILIO_SIGNATURE'] ?? '');
-    if ($token === '' || $signature === '') {
-        return false;
-    }
-
-    $data = sms_webhook_url();
-    $params = $_POST;
-    ksort($params);
-    foreach ($params as $key => $value) {
-        $data .= $key . $value;
-    }
-    $expected = base64_encode(hash_hmac('sha1', $data, $token, true));
-
-    return hash_equals($expected, $signature);
-}
-
-if (!sms_webhook_signature_valid()) {
+if (!sms_webhook_request_authorized($signature, $params)) {
     http_response_code(403);
     echo 'Forbidden';
     exit;
@@ -92,7 +72,7 @@ if ($from !== '' && $body !== '') {
 }
 
 // Status callbacks: acknowledge only. Appointment.NotificationStatus stays at
- // provider-accept time until a future Notification ledger exists.
+// provider-accept time until a future Notification ledger exists.
 if ($messageStatus !== '') {
     error_log(sprintf(
         '[sms_webhook] status=%s sid=%s to_last4=%s',

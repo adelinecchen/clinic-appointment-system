@@ -1,0 +1,3 @@
+# Local state (templates, mock logs, cron locks, CLI tests) is not part of the website.
+# Apache denies requests here if the document root is set too broadly.
+Require all denied

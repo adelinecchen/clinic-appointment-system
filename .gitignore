@@ -7,8 +7,9 @@
 # Dependencies (none are required yet)
 /vendor/
 
-# Local availability blocks saved by the staff desk
-/storage/
+# Local availability / templates / CLI tests / mock logs (keep Apache deny rule tracked)
+/storage/*
+!/storage/.htaccess
 
 # Logs and OS/editor files
 *.log
