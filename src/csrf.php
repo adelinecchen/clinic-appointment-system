@@ -8,6 +8,12 @@ declare(strict_types=1);
 
 function csrf_session_https(): bool
 {
+    // Production always sets Secure cookies (deploy behind HTTPS / TLS termination).
+    $appEnv = strtolower(trim((string) (getenv('APP_ENV') !== false ? getenv('APP_ENV') : '')));
+    if ($appEnv === 'production') {
+        return true;
+    }
+
     if (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') {
         return true;
     }

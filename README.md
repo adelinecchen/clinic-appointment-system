@@ -124,11 +124,11 @@ Expected body when MySQL is running and `.env` matches your local `clinic_db`:
 cp .env.example .env
 ```
 
-`.env.example` already uses the local XAMPP defaults below. Edit `.env` if your MariaDB user or password is different. The variables are:
+`.env.example` already uses the local XAMPP defaults below. Edit `.env` if your MariaDB user or password is different. For a production-like host, start from [`.env.production.example`](.env.production.example) and follow [`docs/DEPLOY.md`](docs/DEPLOY.md).
 
 | Variable | Purpose |
 | --- | --- |
-| `APP_ENV` | `local` while developing; use something else outside local demo |
+| `APP_ENV` | `local` while developing; `production` on a real host |
 | `APP_NAME` | Name shown on the pages |
 | `ADMIN_SESSION_LIFETIME` | Staff session lifetime in seconds (default 28800) |
 | `ADMIN_SEED_ENABLED` | `true` only for local empty-table demo seeding; keep `false` otherwise |
@@ -138,12 +138,21 @@ cp .env.example .env
 | `DB_NAME` | Database name. Local schema: `clinic_db` |
 | `DB_USER` | Database user. XAMPP default: `root` |
 | `DB_PASSWORD` | Database password. XAMPP default is often empty |
+| `SMS_WEBHOOK_URL` | Exact public HTTPS webhook URL (production) |
+| `SMS_LIVE_BREAK_GLASS` | Local live-trial override only; keep `false` in production |
 
-`.env` is listed in `.gitignore`. Commit `.env.example` only.
+`.env` is listed in `.gitignore`. Commit `.env.example` and `.env.production.example` only.
 
 ### First production super_admin
 
-Do **not** enable `ADMIN_SEED_ENABLED` outside local development. Create the first account with a one-time SQL insert (replace the password hash by generating it locally):
+Do **not** enable `ADMIN_SEED_ENABLED` outside local development. Prefer the CLI helper (only works when `Admin` is empty):
+
+```bash
+/Applications/XAMPP/xamppfiles/bin/php scripts/create_first_super_admin.php \
+  "Clinic Lead" lead@example.org 5550100000 'choose-a-strong-password'
+```
+
+Or insert once with SQL (generate the hash locally):
 
 ```bash
 /Applications/XAMPP/xamppfiles/bin/php -r 'echo password_hash("choose-a-strong-password", PASSWORD_DEFAULT), PHP_EOL;'
@@ -159,6 +168,8 @@ VALUES (
   'super_admin'
 );
 ```
+
+Full deploy checklist (HTTPS, cron, backups, SMS-off policy): **[`docs/DEPLOY.md`](docs/DEPLOY.md)**.
 
 While developing locally, change the schema in `database/databaseDDL.sql` and recreate `clinic_db` from that file when needed (demo data is disposable). Versioned ALTER migrations are not required until a shared or production database must be upgraded in place.
 

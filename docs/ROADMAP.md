@@ -62,14 +62,14 @@ Goal: polish existing UI against the live backend; no redesign-from-scratch unle
 
 ---
 
-## Next — Stage C: Deployment preparation
+## Done — Stage C: Deployment preparation
 
-- [ ] Production `.env` pattern: no demo seed, strong admin password, `APP_ENV` not `local`
-- [ ] HTTPS, session Secure cookies, webhook URL
-- [ ] Cron for `scripts/send_appointment_reminders.php`
-- [ ] First `super_admin` create procedure (documented in README)
-- [ ] Backup story includes MariaDB (and any remaining files that must survive)
-- [ ] Keep `SMS_ENABLED=false` until Stage A stakeholder items cleared
+- [x] Production `.env` pattern: [`.env.production.example`](../.env.production.example); no demo seed; `APP_ENV=production`
+- [x] HTTPS / Secure cookies (`APP_ENV=production` forces Secure); webhook URL documented in [`DEPLOY.md`](DEPLOY.md)
+- [x] Cron for `scripts/send_appointment_reminders.php` documented (ET + flock)
+- [x] First `super_admin`: `scripts/create_first_super_admin.php` + README / DEPLOY
+- [x] Backup story: MariaDB + `.env` + `storage/messages.json` in [`DEPLOY.md`](DEPLOY.md)
+- [x] Keep `SMS_ENABLED=false` / mock until Stage A stakeholder items cleared (called out in production env + DEPLOY)
 
 ---
 

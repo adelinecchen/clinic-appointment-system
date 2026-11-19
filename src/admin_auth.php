@@ -201,6 +201,64 @@ function admin_account_view(array $row): array
 }
 
 /**
+ * Bootstrap the first super_admin when Admin is empty (CLI / deploy).
+ * Does not require a logged-in session and does not use ADMIN_SEED_ENABLED.
+ *
+ * @return array{ok: true, account: array}|array{ok: false, error: string}
+ */
+function admin_create_first_super_admin(
+    string $name,
+    string $phone,
+    string $email,
+    string $password
+): array {
+    $count = (int) db()->query('SELECT COUNT(*) FROM Admin')->fetchColumn();
+    if ($count > 0) {
+        return ['ok' => false, 'error' => 'Admin accounts already exist. Use the Staff page instead.'];
+    }
+
+    $name = trim($name);
+    $email = trim($email);
+    $phoneDigits = admin_normalize_phone($phone);
+
+    if (mb_strlen($name) < 2 || mb_strlen($name) > 50) {
+        return ['ok' => false, 'error' => 'Enter a name (2–50 characters).'];
+    }
+    if (!admin_valid_email($email) || strlen($email) > 80) {
+        return ['ok' => false, 'error' => 'Enter a valid email address.'];
+    }
+    if (!admin_valid_phone($phoneDigits)) {
+        return ['ok' => false, 'error' => 'Enter a phone number with 10–15 digits.'];
+    }
+    if (strlen($password) < 10) {
+        return ['ok' => false, 'error' => 'Use a password with at least 10 characters.'];
+    }
+
+    try {
+        $statement = db()->prepare(
+            'INSERT INTO Admin (Name, PhoneNumber, Email, PasswordHash, Role)
+             VALUES (:name, :phone, :email, :hash, :role)'
+        );
+        $statement->execute([
+            'name' => $name,
+            'phone' => $phoneDigits,
+            'email' => $email,
+            'hash' => password_hash($password, PASSWORD_DEFAULT),
+            'role' => 'super_admin',
+        ]);
+        $id = (int) db()->lastInsertId();
+        $row = admin_find_by_id($id);
+        if ($row === null) {
+            return ['ok' => false, 'error' => 'The account could not be saved.'];
+        }
+
+        return ['ok' => true, 'account' => admin_account_view($row)];
+    } catch (PDOException) {
+        return ['ok' => false, 'error' => 'The account could not be saved.'];
+    }
+}
+
+/**
  * Local-only optional demo seed. Never runs unless APP_ENV=local and ADMIN_SEED_ENABLED is true.
  */
 function admin_ensure_seeded(): void

@@ -109,8 +109,8 @@ See [`DECISIONS.md`](DECISIONS.md) for full notes. Short version:
 | Phase 3C / Stage A | Consent → MariaDB; field dedupe; webhook signatures; env guard; cron lock; storage deny (ADR-010–013) |
 
 **Tests (CLI, fictional data):**  
-`storage/m3_booking_test.php` … `m11_sms_ops_test.php`  
-Run with XAMPP PHP, e.g. `/Applications/XAMPP/xamppfiles/bin/php storage/m11_sms_ops_test.php`
+`storage/m3_booking_test.php` … `m12_deploy_prep_test.php`  
+Run with XAMPP PHP, e.g. `/Applications/XAMPP/xamppfiles/bin/php storage/m12_deploy_prep_test.php`
 
 ---
 
@@ -120,9 +120,9 @@ Authoritative checklist: **[`ROADMAP.md`](ROADMAP.md)**.
 
 At a high level, expected order after this point:
 
-1. **Stage C — Deployment preparation** (env, HTTPS, cron install, no demo seeds in prod).
-2. **Stage D — Capstone testing** (scripted + manual), still fictional data; live SMS only if stakeholders approve.
-3. **Stakeholder/legal** (consent copy, BAA/HIPAA project/A2P, SMS body policy) — blocks clinic live SMS; Stage A/B engineering done.
+1. **Stage D — Capstone testing** (scripted + manual), still fictional data; live SMS only if stakeholders approve.
+2. **Stakeholder/legal** (consent copy, BAA/HIPAA project/A2P, SMS body policy) — blocks clinic live SMS; Stage A–C engineering done.
+3. Ops reference: [`DEPLOY.md`](DEPLOY.md).
 
 ---
 

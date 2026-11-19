@@ -7,6 +7,21 @@ Format: **Status** — accepted | superseded | pending stakeholder.
 
 ---
 
+## ADR-015 — Stage C deployment preparation
+
+**Status:** accepted
+
+**Context:** Need a production-ready ops path without enabling live clinic SMS or claiming HIPAA.
+
+**Decision:**
+
+- Ship [`.env.production.example`](../.env.production.example) with `APP_ENV=production`, `ADMIN_SEED_ENABLED=false`, SMS mock/off.
+- Force `Secure` session cookies when `APP_ENV=production`; document TLS + `SMS_WEBHOOK_URL`.
+- First admin via `scripts/create_first_super_admin.php` (empty `Admin` only) or SQL — never production demo seed.
+- Document cron (America/New_York + flock), backups (MariaDB + `.env` + message templates), and SMS-off-until-legal in [`DEPLOY.md`](DEPLOY.md).
+
+---
+
 ## ADR-014 — Stage B UI copy vs SMS behavior
 
 **Status:** accepted
